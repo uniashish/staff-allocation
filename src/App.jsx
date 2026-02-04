@@ -17,7 +17,7 @@ import DashboardLayout from "./components/layout/DashboardLayout";
 // --- NEW IMPORTS ---
 import AllocationLayout from "./components/layout/AllocationLayout";
 import SchoolOverview from "./pages/allocation/SchoolOverview";
-import DepartmentManager from "./pages/allocation/DepartmentManager";
+import Departments from "./components/departments/Departments";
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -65,7 +65,7 @@ function App() {
               <Route index element={<Navigate to="overview" replace />} />
 
               <Route path="overview" element={<SchoolOverview />} />
-              <Route path="departments" element={<DepartmentManager />} />
+              <Route path="departments" element={<Departments />} />
 
               {/* Placeholders for future features */}
               <Route
