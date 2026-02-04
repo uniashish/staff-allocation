@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+/* Define your brand colors directly in CSS now */
+@theme {
+  --color-brand-teal: #00a9a9;
+  --color-brand-orange: #f49119;
+  --color-brand-red: #ea3722;
+  --color-brand-dark: #1a1a1a;
+}
+
+/* Page Setup */
+body {
+  background-color: #f9fafb;
+}
