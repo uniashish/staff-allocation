@@ -1,48 +1,63 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { useContext, useState, useEffect } from "react";
+import { auth, db } from "../firebase/firebaseUtils";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "../firebase/firebaseUtils";
 
-const AuthContext = createContext();
+const AuthContext = React.createContext();
 
-export const useAuth = () => {
+export function useAuth() {
   return useContext(AuthContext);
-};
+}
 
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
-  const [userRole, setUserRole] = useState(null);
-  // We start loading true to block the initial "flash",
-  // but we won't toggle it back to true later.
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      // CRITICAL FIX: Do NOT set loading(true) here.
-      // It causes the entire app to unmount/remount on login/logout,
-      // destroying local state like your error messages.
+    console.log("Auth Provider: Initializing listener...");
 
-      if (user) {
-        try {
-          const userDoc = await getDoc(doc(db, "users", user.uid));
-          if (userDoc.exists()) {
-            setUserRole(userDoc.data().role);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      try {
+        if (user) {
+          console.log("Auth: User detected:", user.email);
+
+          // 1. Try to fetch the specific user document
+          const userDocRef = doc(db, "users", user.uid);
+          const userDocSnap = await getDoc(userDocRef);
+
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            console.log("Auth: Firestore Profile Found:", userData);
+
+            // Success: Merge Auth User + Database Data
+            setCurrentUser({
+              uid: user.uid,
+              email: user.email,
+              ...userData, // This injects 'role', 'name', etc.
+            });
           } else {
-            setUserRole("viewer");
+            console.warn(
+              "Auth: User logged in, but NO DOCUMENT found in 'users' collection.",
+            );
+            console.warn("Creating fallback user object...");
+
+            // FALLBACK: Assign a placeholder role so the UI doesn't hang on "Loading..."
+            setCurrentUser({
+              ...user,
+              role: "guest", // Prevents infinite loading, but won't give admin access
+              name: user.displayName || "Guest User",
+            });
           }
-          setCurrentUser(user);
-        } catch (error) {
-          console.error("Error fetching user role:", error);
-          setUserRole(null);
+        } else {
+          console.log("Auth: User signed out.");
           setCurrentUser(null);
         }
-      } else {
+      } catch (error) {
+        console.error("Auth Error:", error);
         setCurrentUser(null);
-        setUserRole(null);
+      } finally {
+        setLoading(false);
       }
-
-      // We are done loading.
-      setLoading(false);
     });
 
     return unsubscribe;
@@ -50,11 +65,7 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     currentUser,
-    userRole,
     loading,
-    isAdmin: userRole === "admin",
-    isViewer: userRole === "viewer",
-    isPending: userRole === "pending",
   };
 
   return (
@@ -62,4 +73,4 @@ export const AuthProvider = ({ children }) => {
       {!loading && children}
     </AuthContext.Provider>
   );
-};
+}

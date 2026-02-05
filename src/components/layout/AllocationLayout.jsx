@@ -46,37 +46,28 @@ const AllocationLayout = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Changed: Added h-16 and flex layout to put everything in one row */}
           <div className="flex justify-between h-16">
-            {/* Left Side: Back Button & School Info */}
-            <div className="flex items-center gap-4">
+            {/* Left Side: Back Nav + School Title */}
+            <div className="flex items-center">
+              {/* Back Button Group */}
               <Link
                 to="/dashboard"
-                className="text-gray-400 hover:text-gray-700 transition-colors flex items-center gap-1 text-sm font-medium"
+                className="group flex items-center gap-2 text-brand-teal hover:text-teal-700 transition-colors mr-8"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                Back
+                <span className="text-2xl transform group-hover:-translate-x-1 transition-transform">
+                  ←
+                </span>
+                <span className="text-sm font-medium">Dashboard</span>
               </Link>
 
-              {/* Vertical Divider */}
-              <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
+              {/* Vertical Divider (Optional visual separation, remove if unwanted) */}
+              <div className="h-8 w-px bg-gray-200 mr-8 hidden sm:block"></div>
 
-              <div>
-                <h1 className="text-lg font-bold text-slate-900 leading-tight">
+              {/* School Details Column - Ensures location is exactly under name */}
+              <div className="flex flex-col justify-center">
+                <h1 className="text-xl font-bold text-gray-900 leading-tight">
                   {school.name}
                 </h1>
-                {/* Optional: Hide location on very small screens if needed */}
                 <p className="text-xs text-slate-500 hidden sm:block">
                   {school.location}
                 </p>
@@ -84,12 +75,12 @@ const AllocationLayout = () => {
             </div>
 
             {/* Right Side: Navigation Tabs */}
-            {/* Added ml-4 to separate from title, flex items-center to align, h-full to make borders sit at bottom */}
             <nav className="flex space-x-4 sm:space-x-8 -mb-px ml-6 overflow-x-auto h-full">
               <NavTab to="overview" label="Overview" />
               <NavTab to="departments" label="Departments" />
               <NavTab to="classes" label="Classes" />
               <NavTab to="teachers" label="Teachers" />
+              <NavTab to="subjects" label="Subjects" />
               <NavTab to="allocations" label="Allocations" />
             </nav>
           </div>
@@ -103,12 +94,11 @@ const AllocationLayout = () => {
   );
 };
 
-// Updated NavTab styling for side-by-side layout
+// Updated NavTab styling
 const NavTab = ({ to, label }) => (
   <NavLink
     to={to}
     className={({ isActive }) =>
-      // Changed: 'inline-flex items-center px-1 pt-1' ensures text is centered but border is at bottom
       `inline-flex items-center whitespace-nowrap px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
         isActive
           ? "border-brand-teal text-brand-teal"

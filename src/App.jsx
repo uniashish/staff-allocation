@@ -18,6 +18,9 @@ import DashboardLayout from "./components/layout/DashboardLayout";
 import AllocationLayout from "./components/layout/AllocationLayout";
 import SchoolOverview from "./pages/allocation/SchoolOverview";
 import Departments from "./components/departments/Departments";
+import Classes from "./components/classes/Classes";
+import Subjects from "./components/subjects/Subjects";
+import Teachers from "./components/teachers/Teachers";
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -68,18 +71,9 @@ function App() {
               <Route path="departments" element={<Departments />} />
 
               {/* Placeholders for future features */}
-              <Route
-                path="teachers"
-                element={
-                  <div className="p-8">Manage Teachers (Coming Soon)</div>
-                }
-              />
-              <Route
-                path="classes"
-                element={
-                  <div className="p-8">Manage Classes (Coming Soon)</div>
-                }
-              />
+              <Route path="teachers" element={<Teachers />} />
+              <Route path="classes" element={<Classes />} />
+              <Route path="subjects" element={<Subjects />} />
               <Route
                 path="allocations"
                 element={
