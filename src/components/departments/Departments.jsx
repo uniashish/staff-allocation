@@ -13,65 +13,93 @@ import {
 import { db } from "../../firebase/firebaseUtils";
 import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
 import DepartmentModal from "./DepartmentModal";
+import DepartmentDetailModal from "./DepartmentDetailModal"; // Import the detail modal
 
 const Departments = () => {
-  const { school } = useOutletContext(); // Get schoolId from Layout
+  const { school } = useOutletContext();
+
+  // Data State
   const [departments, setDepartments] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal State
+  // Edit/Create Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDept, setEditingDept] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 1. Fetch Departments
-  const fetchDepartments = async () => {
+  // Detail View Modal State
+  const [viewingDept, setViewingDept] = useState(null);
+
+  // 1. Fetch All Related Data
+  const fetchData = async () => {
     try {
-      const q = query(
+      // Fetch Departments
+      const deptQuery = query(
         collection(db, "schools", school.id, "departments"),
         orderBy("name"),
       );
-      const querySnapshot = await getDocs(q);
-      const deptList = querySnapshot.docs.map((doc) => ({
+      const deptSnap = await getDocs(deptQuery);
+      const deptList = deptSnap.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
       setDepartments(deptList);
+
+      // Fetch Teachers (to count them)
+      const teachSnap = await getDocs(
+        collection(db, "schools", school.id, "teachers"),
+      );
+      const teachList = teachSnap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setTeachers(teachList);
+
+      // Fetch Subjects (to count them)
+      const subSnap = await getDocs(
+        collection(db, "schools", school.id, "subjects"),
+      );
+      const subList = subSnap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setSubjects(subList);
     } catch (error) {
-      console.error("Error fetching departments:", error);
+      console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (school?.id) fetchDepartments();
+    if (school?.id) fetchData();
   }, [school?.id]);
 
-  // 2. Add or Edit Department
+  // 2. Add or Edit Logic
   const handleSave = async (formData) => {
     setIsSubmitting(true);
     try {
-      const deptRef = collection(db, "schools", school.id, "departments");
+      const collectionRef = collection(db, "schools", school.id, "departments");
+      const payload = {
+        name: formData.name,
+        updatedAt: new Date(),
+      };
 
       if (editingDept) {
-        // Update existing
         await updateDoc(
           doc(db, "schools", school.id, "departments", editingDept.id),
-          {
-            name: formData.name,
-          },
+          payload,
         );
       } else {
-        // Create new
-        await addDoc(deptRef, {
-          name: formData.name,
+        await addDoc(collectionRef, {
+          ...payload,
           createdAt: new Date(),
-          teacherCount: 0, // Initialize counters if needed later
         });
       }
 
-      await fetchDepartments(); // Refresh list
+      await fetchData();
       handleCloseModal();
     } catch (error) {
       console.error("Error saving department:", error);
@@ -81,22 +109,18 @@ const Departments = () => {
     }
   };
 
-  // 3. Delete Department
+  // 3. Delete Logic
   const handleDelete = async (id, name) => {
-    if (
-      window.confirm(`Are you sure you want to delete the ${name} department?`)
-    ) {
+    if (window.confirm(`Delete ${name}?`)) {
       try {
         await deleteDoc(doc(db, "schools", school.id, "departments", id));
-        setDepartments((prev) => prev.filter((dept) => dept.id !== id));
+        setDepartments((prev) => prev.filter((d) => d.id !== id));
       } catch (error) {
         console.error("Error deleting:", error);
-        alert("Failed to delete. Try again.");
       }
     }
   };
 
-  // Modal Handlers
   const openAddModal = () => {
     setEditingDept(null);
     setIsModalOpen(true);
@@ -121,12 +145,12 @@ const Departments = () => {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Departments</h2>
           <p className="text-sm text-gray-500">
-            Manage subject departments for {school.name}
+            Manage school departments and view assigned staff.
           </p>
         </div>
         <button
@@ -145,59 +169,93 @@ const Departments = () => {
             <Building2 className="text-blue-500" size={24} />
           </div>
           <h3 className="text-lg font-medium text-gray-900">
-            No departments yet
+            No departments defined
           </h3>
           <p className="text-gray-500 text-sm mt-1">
-            Get started by adding your first department.
+            Create departments to organize subjects and teachers.
           </p>
         </div>
       ) : (
-        /* Data Grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {departments.map((dept) => (
-            <div
-              key={dept.id}
-              className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group"
-            >
-              <div className="flex justify-between items-start mb-2">
-                <div className="bg-blue-50 text-blue-700 p-2 rounded-lg">
-                  <Building2 size={20} />
-                </div>
-                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        /* List View */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {departments.map((dept) => {
+            // Calculate Counts
+            const teacherCount = teachers.filter(
+              (t) => t.departmentIds && t.departmentIds.includes(dept.id),
+            ).length;
+            const subjectCount = subjects.filter(
+              (s) => s.departmentId === dept.id,
+            ).length;
+
+            return (
+              <div
+                key={dept.id}
+                className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="bg-blue-50 text-blue-700 p-2 rounded-lg">
+                      <Building2 size={20} />
+                    </div>
+
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditModal(dept);
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(dept.id, dept.name);
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* THIS IS THE CLICKABLE BUTTON - REPLACES THE OLD H3 */}
                   <button
-                    onClick={() => openEditModal(dept)}
-                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md"
+                    onClick={() => setViewingDept(dept)}
+                    className="text-left font-semibold text-gray-900 text-lg hover:text-blue-600 hover:underline decoration-blue-300 underline-offset-4 transition-all focus:outline-none block w-full"
                   >
-                    <Pencil size={16} />
+                    {dept.name}
                   </button>
-                  <button
-                    onClick={() => handleDelete(dept.id, dept.name)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+
+                  <p className="text-sm text-gray-500 mt-2">
+                    {teacherCount} {teacherCount === 1 ? "Teacher" : "Teachers"}{" "}
+                    • {subjectCount}{" "}
+                    {subjectCount === 1 ? "Subject" : "Subjects"}
+                  </p>
                 </div>
               </div>
-
-              <h3 className="font-semibold text-gray-900 text-lg">
-                {dept.name}
-              </h3>
-              <p className="text-sm text-gray-500 mt-1">
-                0 Teachers • 0 Classes
-                {/* We will wire these counts up later */}
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* Modal */}
+      {/* Add/Edit Modal */}
       <DepartmentModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onSubmit={handleSave}
         initialData={editingDept}
         isSubmitting={isSubmitting}
+      />
+
+      {/* Detail View Modal */}
+      <DepartmentDetailModal
+        isOpen={!!viewingDept}
+        onClose={() => setViewingDept(null)}
+        department={viewingDept}
+        teachers={teachers}
+        subjects={subjects}
       />
     </div>
   );
