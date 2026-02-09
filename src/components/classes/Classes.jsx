@@ -101,16 +101,15 @@ const Classes = () => {
     });
 
     // 3. Calculate Percentage
-    // Prevent division by zero if totalRequired is 0
     const percentage =
       totalRequired > 0
         ? Math.min((totalAllocated / totalRequired) * 100, 100)
         : 0;
 
     // 4. Return Gradient Style
-    // Green (emerald-50) for filled, Light Red (red-50 #fef2f2) for empty/unallocated
+    // Updated to darker shades: Green-200 (#bbf7d0) and Red-200 (#fecaca)
     return {
-      background: `linear-gradient(90deg, #ecfdf5 ${percentage}%, #fef2f2 ${percentage}%)`,
+      background: `linear-gradient(90deg, #bbf7d0 ${percentage}%, #fecaca ${percentage}%)`,
     };
   };
 
@@ -215,7 +214,7 @@ const Classes = () => {
             <div
               key={grade.id}
               onClick={() => setViewingGrade(grade)}
-              style={getProgressStyle(grade.id)} // Dynamic Gradient Background
+              style={getProgressStyle(grade.id)} // Apply Darker Gradient
               className="p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group cursor-pointer relative overflow-hidden"
             >
               <div className="flex justify-between items-start relative z-10">
@@ -223,7 +222,7 @@ const Classes = () => {
                   <h3 className="font-bold text-lg text-gray-900">
                     {grade.name}
                   </h3>
-                  <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                  <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 font-medium">
                     <span className="flex items-center gap-1">
                       <Users size={14} />{" "}
                       {grade.totalStudents || grade.studentCount || 0} Students

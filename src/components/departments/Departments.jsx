@@ -56,7 +56,7 @@ const Departments = () => {
           getDocs(collection(db, "schools", school.id, "teachers")),
           getDocs(collection(db, "schools", school.id, "subjects")),
           getDocs(collection(db, "schools", school.id, "allocations")),
-          getDocs(collection(db, "schools", school.id, "grades")), // Fetch Grades
+          getDocs(collection(db, "schools", school.id, "grades")),
         ]);
 
       setDepartments(
@@ -81,6 +81,7 @@ const Departments = () => {
 
   // Helper: Calculate Progress & Stats for Department
   const getDeptStats = (deptId) => {
+    // 1. Demand: Sum of all periods required by subjects in this department
     let totalRequired = 0;
     const deptSubjects = subjects.filter((s) => s.departmentId === deptId);
 
@@ -92,7 +93,9 @@ const Departments = () => {
       }
     });
 
+    // 2. Supply: Sum of allocated periods for subjects in this department
     let totalAllocated = 0;
+    // We filter allocations by the subject IDs belonging to this department
     const subjectIds = deptSubjects.map((s) => s.id);
     const deptAllocations = allocations.filter((a) =>
       subjectIds.includes(a.subjectId),
@@ -102,6 +105,7 @@ const Departments = () => {
       totalAllocated += parseInt(a.periodsPerWeek) || 0;
     });
 
+    // 3. Percentage
     const percentage =
       totalRequired > 0
         ? Math.min((totalAllocated / totalRequired) * 100, 100)
@@ -112,7 +116,8 @@ const Departments = () => {
       totalAllocated,
       percentage,
       style: {
-        background: `linear-gradient(90deg, #ecfdf5 ${percentage}%, #fef2f2 ${percentage}%)`,
+        // Updated colors to match Classes card (Green-200 and Red-200)
+        background: `linear-gradient(90deg, #bbf7d0 ${percentage}%, #fecaca ${percentage}%)`,
       },
     };
   };
@@ -176,6 +181,7 @@ const Departments = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Departments</h2>
@@ -192,6 +198,7 @@ const Departments = () => {
         </button>
       </div>
 
+      {/* Grid Layout */}
       {departments.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
           <div className="bg-blue-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -221,11 +228,12 @@ const Departments = () => {
               <div
                 key={dept.id}
                 onClick={() => setViewingDept(dept)}
-                style={stats.style}
+                style={stats.style} // Dynamic Gradient
                 className="p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group cursor-pointer relative overflow-hidden"
               >
                 <div className="flex justify-between items-start relative z-10">
                   <div className="flex-1">
+                    {/* Header Row */}
                     <div className="flex justify-between items-start">
                       <div>
                         <h3 className="text-lg font-bold text-gray-900">
@@ -240,6 +248,7 @@ const Departments = () => {
                           </span>
                         </div>
                       </div>
+                      {/* Action Buttons */}
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
                         <button
                           onClick={(e) => {
@@ -262,6 +271,7 @@ const Departments = () => {
                       </div>
                     </div>
 
+                    {/* Periods Stats */}
                     <div className="mt-4 flex items-center gap-2">
                       <Clock
                         size={16}
@@ -286,6 +296,7 @@ const Departments = () => {
         </div>
       )}
 
+      {/* Add/Edit Modal */}
       <DepartmentModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
@@ -294,6 +305,7 @@ const Departments = () => {
         isSubmitting={isSubmitting}
       />
 
+      {/* Detail View Modal */}
       <DepartmentDetailModal
         isOpen={!!viewingDept}
         onClose={() => setViewingDept(null)}

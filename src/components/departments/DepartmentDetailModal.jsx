@@ -234,12 +234,15 @@ const DepartmentDetailModal = ({
                             0,
                           );
 
-                          // 4. Get Unique Teacher Names
-                          const assignedTeachers = [
-                            ...new Set(
-                              gradeAllocations.map((a) => a.teacherName),
-                            ),
-                          ];
+                          // 4. Group by teacher to get counts
+                          const teacherStats = {};
+                          gradeAllocations.forEach((a) => {
+                            if (!teacherStats[a.teacherName]) {
+                              teacherStats[a.teacherName] = 0;
+                            }
+                            teacherStats[a.teacherName] +=
+                              parseInt(a.periodsPerWeek) || 0;
+                          });
 
                           const isComplete =
                             gradeAllocCount >= parseInt(detail.periods);
@@ -256,16 +259,18 @@ const DepartmentDetailModal = ({
 
                               {/* Middle: Teacher Name */}
                               <div className="flex-1 px-3 text-left">
-                                {assignedTeachers.length > 0 ? (
+                                {Object.keys(teacherStats).length > 0 ? (
                                   <div className="flex flex-wrap gap-1">
-                                    {assignedTeachers.map((name, tIdx) => (
-                                      <span
-                                        key={tIdx}
-                                        className="flex items-center gap-1 bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[10px] border border-blue-100"
-                                      >
-                                        <User size={8} /> {name}
-                                      </span>
-                                    ))}
+                                    {Object.entries(teacherStats).map(
+                                      ([name, count], tIdx) => (
+                                        <span
+                                          key={tIdx}
+                                          className="flex items-center gap-1 bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[10px] border border-blue-100"
+                                        >
+                                          <User size={8} /> {name} ({count})
+                                        </span>
+                                      ),
+                                    )}
                                   </div>
                                 ) : (
                                   <span className="text-gray-400 italic">

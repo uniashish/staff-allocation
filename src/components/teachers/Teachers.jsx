@@ -19,7 +19,7 @@ import {
   GraduationCap,
   Building2,
   BookOpen,
-  Clock, // Added Clock icon
+  Clock,
 } from "lucide-react";
 import TeacherModal from "./TeacherModal";
 import TeacherDetailModal from "./TeacherDetailModal";
@@ -32,7 +32,7 @@ const Teachers = () => {
   const [departments, setDepartments] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [grades, setGrades] = useState([]);
-  const [allocations, setAllocations] = useState([]); // State for allocations
+  const [allocations, setAllocations] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modal State
@@ -48,66 +48,50 @@ const Teachers = () => {
   // 1. Fetch All Data
   const fetchData = async () => {
     try {
-      // Fetch Departments
-      const deptSnapshot = await getDocs(
-        query(
-          collection(db, "schools", school.id, "departments"),
-          orderBy("name"),
-        ),
-      );
-      const deptList = deptSnapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
-      setDepartments(deptList);
+      // Parallel Fetch
+      const [teachSnap, deptSnap, subjSnap, gradeSnap, allocSnap] =
+        await Promise.all([
+          getDocs(
+            query(
+              collection(db, "schools", school.id, "teachers"),
+              orderBy("name"),
+            ),
+          ),
+          getDocs(collection(db, "schools", school.id, "departments")),
+          getDocs(collection(db, "schools", school.id, "subjects")),
+          getDocs(collection(db, "schools", school.id, "grades")),
+          getDocs(collection(db, "schools", school.id, "allocations")),
+        ]);
 
-      // Fetch Subjects
-      const subjSnapshot = await getDocs(
-        query(
-          collection(db, "schools", school.id, "subjects"),
-          orderBy("name"),
-        ),
-      );
-      const subjList = subjSnapshot.docs.map((s) => ({
-        id: s.id,
-        ...s.data(),
+      const rawTeachers = teachSnap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
       }));
-      setSubjects(subjList);
-
-      // Fetch Grades (Classes)
-      const gradeSnapshot = await getDocs(
-        query(collection(db, "schools", school.id, "grades"), orderBy("name")),
+      setDepartments(
+        deptSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
       );
-      const gradeList = gradeSnapshot.docs.map((g) => ({
-        id: g.id,
-        ...g.data(),
-      }));
-      setGrades(gradeList);
+      setSubjects(subjSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+      setGrades(gradeSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
 
-      // Fetch Allocations
-      const allocSnapshot = await getDocs(
-        collection(db, "schools", school.id, "allocations"),
-      );
-      const allocList = allocSnapshot.docs.map((a) => ({
-        id: a.id,
-        ...a.data(),
+      const allocList = allocSnap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
       }));
       setAllocations(allocList);
 
-      // Fetch Teachers
-      const teacherSnapshot = await getDocs(
-        query(
-          collection(db, "schools", school.id, "teachers"),
-          orderBy("name"),
-        ),
-      );
-      const teacherList = teacherSnapshot.docs.map((t) => ({
-        id: t.id,
-        ...t.data(),
-      }));
-      setTeachers(teacherList);
+      // SORT TEACHERS BASED ON ALLOCATED PERIODS (DESCENDING)
+      const sortedTeachers = rawTeachers
+        .map((teacher) => {
+          const currentLoad = allocList
+            .filter((a) => a.teacherId === teacher.id)
+            .reduce((sum, a) => sum + (parseInt(a.periodsPerWeek) || 0), 0);
+          return { ...teacher, currentLoad }; // Attach load for sorting
+        })
+        .sort((a, b) => b.currentLoad - a.currentLoad); // Sort Descending
+
+      setTeachers(sortedTeachers);
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("Error fetching teachers:", error);
     } finally {
       setLoading(false);
     }
@@ -117,30 +101,38 @@ const Teachers = () => {
     if (school?.id) fetchData();
   }, [school?.id]);
 
-  // 2. Save Logic
-  const handleSave = async (formData) => {
-    if (!canEdit) return;
+  // Helper: Calculate Load Stats & Style
+  const getTeacherStats = (teacherId, maxLoad) => {
+    const currentLoad = allocations
+      .filter((a) => a.teacherId === teacherId)
+      .reduce((sum, a) => sum + (parseInt(a.periodsPerWeek) || 0), 0);
 
+    const max = parseInt(maxLoad) || 30;
+    const percentage = Math.min((currentLoad / max) * 100, 100);
+
+    return {
+      currentLoad,
+      max,
+      percentage: Math.round((currentLoad / max) * 100),
+      style: {
+        background: `linear-gradient(90deg, #bbf7d0 ${percentage}%, #fecaca ${percentage}%)`,
+      },
+    };
+  };
+
+  // Save Logic
+  const handleSave = async (formData) => {
     setIsSubmitting(true);
     try {
       const collectionRef = collection(db, "schools", school.id, "teachers");
-      const payload = {
-        ...formData,
-        updatedAt: new Date(),
-      };
-
       if (editingTeacher) {
         await updateDoc(
           doc(db, "schools", school.id, "teachers", editingTeacher.id),
-          payload,
+          { ...formData, updatedAt: new Date() },
         );
       } else {
-        await addDoc(collectionRef, {
-          ...payload,
-          createdAt: new Date(),
-        });
+        await addDoc(collectionRef, { ...formData, createdAt: new Date() });
       }
-
       await fetchData();
       handleCloseModal();
     } catch (error) {
@@ -151,41 +143,9 @@ const Teachers = () => {
     }
   };
 
-  // 3. Delete Logic
+  // Delete Logic
   const handleDelete = async (id, name) => {
-    if (!canEdit) return;
-
-    // Check Allocations
-    const hasAllocations = allocations.some((a) => a.teacherId === id);
-    if (hasAllocations) {
-      alert(
-        `Cannot delete ${name}. This teacher has active class allocations. Please remove them in the Allocations page first.`,
-      );
-      return;
-    }
-
-    // Check Department & Subject Associations
-    const teacherToDelete = teachers.find((t) => t.id === id);
-    if (teacherToDelete) {
-      if (
-        teacherToDelete.departmentIds &&
-        teacherToDelete.departmentIds.length > 0
-      ) {
-        alert(
-          `Cannot delete ${name}. This teacher is currently assigned to departments. Please edit the teacher and remove these assignments first.`,
-        );
-        return;
-      }
-
-      if (teacherToDelete.subjectIds && teacherToDelete.subjectIds.length > 0) {
-        alert(
-          `Cannot delete ${name}. This teacher is currently assigned to subjects. Please edit the teacher and remove these assignments first.`,
-        );
-        return;
-      }
-    }
-
-    if (window.confirm(`Are you sure you want to delete ${name}?`)) {
+    if (window.confirm(`Delete ${name}?`)) {
       try {
         await deleteDoc(doc(db, "schools", school.id, "teachers", id));
         setTeachers((prev) => prev.filter((t) => t.id !== id));
@@ -212,25 +172,17 @@ const Teachers = () => {
 
   if (loading)
     return (
-      <div className="p-8 text-center text-gray-500">
-        Loading faculty data...
-      </div>
+      <div className="p-8 text-center text-gray-500">Loading teachers...</div>
     );
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">
-            Teacher Management
-          </h2>
-          <p className="text-sm text-gray-500">
-            Manage faculty members, their departments, and assigned subjects.
-          </p>
+          <h2 className="text-xl font-bold text-gray-900">Teachers</h2>
+          <p className="text-sm text-gray-500">Manage faculty and workload.</p>
         </div>
-
-        {/* Only show Add button if super_admin */}
         {canEdit && (
           <button
             onClick={openAddModal}
@@ -242,7 +194,7 @@ const Teachers = () => {
         )}
       </div>
 
-      {/* Empty State */}
+      {/* Grid Layout */}
       {teachers.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
           <div className="bg-blue-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -252,112 +204,150 @@ const Teachers = () => {
             No teachers found
           </h3>
           <p className="text-gray-500 text-sm mt-1">
-            {canEdit
-              ? "Add your first teacher to get started."
-              : "No teachers have been added yet."}
+            Add your first teacher to get started.
           </p>
         </div>
       ) : (
-        /* Grid Layout */
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {teachers.map((teacher) => {
-            // CALCULATE WORKLOAD
-            const totalWorkload = allocations
-              .filter((a) => a.teacherId === teacher.id)
-              .reduce((sum, a) => sum + (parseInt(a.periodsPerWeek) || 0), 0);
+            // Get Departments
+            const teacherDepts =
+              teacher.departmentIds && teacher.departmentIds.length > 0
+                ? departments
+                    .filter((d) => teacher.departmentIds.includes(d.id))
+                    .map((d) => d.name)
+                : [];
 
-            // Get Max Load (default to 30)
-            const maxLoad = teacher.maxLoad || 30;
-            const isOverloaded = totalWorkload > maxLoad;
+            // Get Stats
+            const stats = getTeacherStats(teacher.id, teacher.maxLoad);
 
             return (
               <div
                 key={teacher.id}
-                className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group flex flex-col h-full"
+                onClick={() => setViewingTeacher(teacher)}
+                style={stats.style}
+                className="p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group cursor-pointer relative overflow-hidden"
               >
-                {/* Card Header */}
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center gap-3 w-full">
-                    <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-lg shrink-0">
+                <div className="flex justify-between items-start relative z-10">
+                  <div className="flex gap-3 w-full">
+                    {/* Avatar */}
+                    <div className="w-10 h-10 rounded-full bg-white border border-gray-200 text-blue-600 flex items-center justify-center font-bold text-lg shrink-0 shadow-sm">
                       {teacher.name.charAt(0)}
                     </div>
+
                     <div className="flex-1 min-w-0">
-                      {/* Name Button */}
-                      <button
-                        onClick={() => setViewingTeacher(teacher)}
-                        className="font-semibold text-gray-900 leading-tight hover:text-blue-600 hover:underline text-left truncate w-full focus:outline-none"
-                      >
-                        {teacher.name}
-                      </button>
-
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {/* Workload Badge */}
+                      <div className="flex justify-between items-start">
+                        <h3 className="font-bold text-gray-900 truncate pr-2">
+                          {teacher.name}
+                        </h3>
+                        {/* Percentage Badge */}
                         <span
-                          className={`
-                            text-xs flex items-center gap-1 bg-opacity-50 px-1.5 py-0.5 rounded border font-medium whitespace-nowrap
-                            ${
-                              isOverloaded
-                                ? "bg-red-50 text-red-700 border-red-200"
-                                : "bg-orange-50 text-orange-700 border-orange-100"
-                            }
-                          `}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border shadow-sm shrink-0 
+                            ${stats.percentage > 100 ? "bg-red-600 text-white border-red-700" : "bg-white text-gray-700 border-gray-200"}`}
                         >
-                          <Clock size={10} />
-                          {totalWorkload} / {maxLoad} p/w
+                          {stats.percentage}%
                         </span>
+                      </div>
 
-                        {teacher.departmentNames &&
-                          teacher.departmentNames.map((dept, i) => (
-                            <span
-                              key={i}
-                              className="text-xs text-gray-500 flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 rounded"
-                            >
-                              {dept}
-                            </span>
-                          ))}
+                      <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                        <Building2 size={12} />
+                        <span className="truncate">
+                          {teacherDepts.length > 0
+                            ? teacherDepts.join(", ")
+                            : "No Dept"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1 text-xs font-medium text-gray-700">
+                        <Clock
+                          size={12}
+                          className={
+                            stats.currentLoad > stats.max
+                              ? "text-red-500"
+                              : "text-green-600"
+                          }
+                        />
+                        <span>
+                          {stats.currentLoad} / {stats.max} periods
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Actions - Only visible to super_admin */}
+                  {/* Actions (Only for Super Admin) */}
                   {canEdit && (
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0">
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-0 right-0 p-2">
                       <button
-                        onClick={() => openEditModal(teacher)}
-                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditModal(teacher);
+                        }}
+                        className="p-1.5 bg-white text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md border border-gray-200 shadow-sm"
                       >
-                        <Pencil size={16} />
+                        <Pencil size={14} />
                       </button>
                       <button
-                        onClick={() => handleDelete(teacher.id, teacher.name)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(teacher.id, teacher.name);
+                        }}
+                        className="p-1.5 bg-white text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md border border-gray-200 shadow-sm"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   )}
                 </div>
 
-                {/* Subjects List */}
-                <div className="mt-auto pt-3 border-t border-gray-50">
-                  <p className="text-xs text-gray-400 mb-2 flex items-center gap-1">
-                    <BookOpen size={12} /> Teaches:
-                  </p>
+                {/* Subject Tags with Period Counts */}
+                <div className="mt-3 relative z-10 pl-[52px]">
                   <div className="flex flex-wrap gap-1.5">
                     {teacher.subjectNames && teacher.subjectNames.length > 0 ? (
-                      teacher.subjectNames.map((subj, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-100"
-                        >
-                          {subj}
-                        </span>
-                      ))
+                      teacher.subjectNames.slice(0, 3).map((subjName, idx) => {
+                        // Find matching subject to get ID
+                        const subjectObj = subjects.find(
+                          (s) => s.name === subjName,
+                        );
+                        // Calculate load for this specific subject
+                        const subjectLoad = subjectObj
+                          ? allocations
+                              .filter(
+                                (a) =>
+                                  a.teacherId === teacher.id &&
+                                  a.subjectId === subjectObj.id,
+                              )
+                              .reduce(
+                                (sum, a) =>
+                                  sum + (parseInt(a.periodsPerWeek) || 0),
+                                0,
+                              )
+                          : 0;
+
+                        return (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-white/80 border border-gray-200 text-gray-700 backdrop-blur-sm"
+                          >
+                            {subjName}
+                            <span
+                              className={`ml-1 font-bold ${subjectLoad > 0 ? "text-blue-600" : "text-gray-400"}`}
+                            >
+                              ({subjectLoad})
+                            </span>
+                          </span>
+                        );
+                      })
                     ) : (
-                      <span className="text-xs text-gray-400 italic">
+                      <span className="text-[10px] text-gray-400 italic">
                         No subjects assigned
                       </span>
                     )}
+                    {teacher.subjectNames &&
+                      teacher.subjectNames.length > 3 && (
+                        <span className="text-[10px] text-gray-500 px-1">
+                          + {teacher.subjectNames.length - 3}
+                        </span>
+                      )}
                   </div>
                 </div>
               </div>
@@ -379,7 +369,7 @@ const Teachers = () => {
         />
       )}
 
-      {/* Detail View Modal - NOW RECEIVES ALLOCATIONS */}
+      {/* Detail View Modal */}
       <TeacherDetailModal
         isOpen={!!viewingTeacher}
         onClose={() => setViewingTeacher(null)}
