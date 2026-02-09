@@ -1,5 +1,13 @@
-import React from "react";
-import { X, User, BookOpen, Building2 } from "lucide-react";
+import React, { useMemo } from "react";
+import {
+  X,
+  User,
+  BookOpen,
+  Building2,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
 
 const DepartmentDetailModal = ({
   isOpen,
@@ -7,132 +15,296 @@ const DepartmentDetailModal = ({
   department,
   teachers,
   subjects,
+  allocations = [],
+  grades = [],
 }) => {
   if (!isOpen || !department) return null;
 
-  // Filter data specifically for this department
-  const deptTeachers = teachers.filter(
-    (t) => t.departmentIds && t.departmentIds.includes(department.id),
-  );
+  // 1. Process Data
+  const { deptTeachers, deptSubjects, stats } = useMemo(() => {
+    // A. Filter Teachers & Calculate their Load for THIS department
+    const relevantTeachers = teachers
+      .filter((t) => t.departmentIds && t.departmentIds.includes(department.id))
+      .map((t) => {
+        const deptSubjectIds = subjects
+          .filter((s) => s.departmentId === department.id)
+          .map((s) => s.id);
 
-  const deptSubjects = subjects.filter((s) => s.departmentId === department.id);
+        // Calculate load specifically for this department's subjects
+        const deptLoad = allocations
+          .filter(
+            (a) => a.teacherId === t.id && deptSubjectIds.includes(a.subjectId),
+          )
+          .reduce((sum, a) => sum + (parseInt(a.periodsPerWeek) || 0), 0);
+
+        // Calculate Total Load (across ALL departments) for the progress bar context
+        const totalLoad = allocations
+          .filter((a) => a.teacherId === t.id)
+          .reduce((sum, a) => sum + (parseInt(a.periodsPerWeek) || 0), 0);
+
+        return { ...t, deptLoad, totalLoad };
+      });
+
+    // B. Filter Subjects & Calculate Status
+    const relevantSubjects = subjects
+      .filter((s) => s.departmentId === department.id)
+      .map((s) => {
+        let req = 0;
+        let alloc = 0;
+
+        if (s.gradeDetails) {
+          req = s.gradeDetails.reduce(
+            (sum, g) => sum + (parseInt(g.periods) || 0),
+            0,
+          );
+        }
+
+        alloc = allocations
+          .filter((a) => a.subjectId === s.id)
+          .reduce((sum, a) => sum + (parseInt(a.periodsPerWeek) || 0), 0);
+
+        return { ...s, req, alloc };
+      });
+
+    const totalReq = relevantSubjects.reduce((sum, s) => sum + s.req, 0);
+    const totalAlloc = relevantSubjects.reduce((sum, s) => sum + s.alloc, 0);
+
+    return {
+      deptTeachers: relevantTeachers,
+      deptSubjects: relevantSubjects,
+      stats: { totalReq, totalAlloc },
+    };
+  }, [department, teachers, subjects, allocations]);
+
+  // Helper for Progress Bar Style
+  const getTeacherProgressStyle = (load, max) => {
+    const maxLoad = parseInt(max) || 30;
+    const percentage = Math.min((load / maxLoad) * 100, 100);
+    // Green for allocated, Red for remaining space
+    return {
+      background: `linear-gradient(90deg, #dcfce7 ${percentage}%, #fee2e2 ${percentage}%)`,
+    };
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-100 text-blue-700 p-2 rounded-lg">
-              <Building2 size={24} />
+        <div className="px-6 py-5 border-b border-gray-100 bg-gray-50 flex justify-between items-start">
+          <div className="flex items-center gap-4">
+            <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm text-blue-600">
+              <Building2 size={28} />
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-900">
                 {department.name}
               </h2>
-              <p className="text-sm text-gray-500">Department Details</p>
+              <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+                <span className="flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-gray-200">
+                  <Clock size={14} className="text-blue-500" />
+                  <span className="font-bold text-gray-900">
+                    {stats.totalAlloc}
+                  </span>{" "}
+                  / {stats.totalReq} periods
+                </span>
+                <span>{deptTeachers.length} Teachers</span>
+                <span>{deptSubjects.length} Subjects</span>
+              </div>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors bg-white p-2 rounded-full hover:bg-gray-100 border border-transparent hover:border-gray-200"
+            className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-full"
           >
-            <X size={20} />
+            <X size={24} />
           </button>
         </div>
 
-        {/* Content Body - Scrollable */}
-        <div className="p-6 overflow-y-auto space-y-8">
-          {/* Section 1: Teachers */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <User className="text-blue-600" size={20} />
-              <h3 className="text-lg font-semibold text-gray-800">
-                Faculty Members ({deptTeachers.length})
-              </h3>
-            </div>
+        {/* Content - Two Columns */}
+        <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+          {/* Left Column: Teachers (Updated with Progress Bar) */}
+          <div className="flex-1 overflow-y-auto border-r border-gray-100 p-6 bg-white">
+            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <User size={16} /> Faculty Members
+            </h3>
 
-            {deptTeachers.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {deptTeachers.map((teacher) => (
+            <div className="space-y-3">
+              {deptTeachers.length > 0 ? (
+                deptTeachers.map((teacher) => (
                   <div
                     key={teacher.id}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-slate-50"
+                    style={getTeacherProgressStyle(
+                      teacher.totalLoad,
+                      teacher.maxLoad,
+                    )}
+                    className="flex items-center justify-between p-3 rounded-lg border border-gray-200 shadow-sm transition-all group relative overflow-hidden"
                   >
-                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
-                      {teacher.name.charAt(0)}
+                    <div className="flex items-center gap-3 relative z-10">
+                      <div className="w-8 h-8 rounded-full bg-white border border-gray-200 text-blue-600 flex items-center justify-center font-bold text-sm shadow-sm">
+                        {teacher.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">
+                          {teacher.name}
+                        </p>
+                        <p className="text-xs text-gray-600 font-medium">
+                          {teacher.deptLoad} periods (Dept)
+                        </p>
+                      </div>
                     </div>
-                    <span className="text-gray-700 font-medium">
-                      {teacher.name}
-                    </span>
+                    <div className="text-right relative z-10">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide block mb-0.5">
+                        Total Load
+                      </span>
+                      <span
+                        className={`text-xs font-bold px-1.5 py-0.5 rounded bg-white border border-gray-200 shadow-sm ${
+                          teacher.maxLoad && teacher.totalLoad > teacher.maxLoad
+                            ? "text-red-600"
+                            : "text-green-700"
+                        }`}
+                      >
+                        {teacher.totalLoad} / {teacher.maxLoad || 30}
+                      </span>
+                    </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400 italic pl-1">
-                No teachers assigned to this department yet.
-              </p>
-            )}
+                ))
+              ) : (
+                <p className="text-sm text-gray-400 italic">
+                  No teachers assigned.
+                </p>
+              )}
+            </div>
           </div>
 
-          <div className="border-t border-gray-100"></div>
+          {/* Right Column: Subjects & Classes */}
+          <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
+            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <BookOpen size={16} /> Subjects & Allocation
+            </h3>
 
-          {/* Section 2: Subjects */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <BookOpen className="text-emerald-600" size={20} />
-              <h3 className="text-lg font-semibold text-gray-800">
-                Curriculum Subjects ({deptSubjects.length})
-              </h3>
-            </div>
-
-            {deptSubjects.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {deptSubjects.map((subject) => (
+            <div className="space-y-4">
+              {deptSubjects.length > 0 ? (
+                deptSubjects.map((subject) => (
                   <div
                     key={subject.id}
-                    className="p-3 rounded-lg border border-gray-100 bg-emerald-50/50 hover:bg-emerald-50 transition-colors"
+                    className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm"
                   >
-                    <div className="font-medium text-emerald-900">
-                      {subject.name}
+                    <div className="flex justify-between items-start mb-3">
+                      <h4 className="font-bold text-gray-900">
+                        {subject.name}
+                      </h4>
+                      <div
+                        className={`text-xs font-bold px-2 py-1 rounded flex items-center gap-1 ${
+                          subject.alloc === subject.req
+                            ? "bg-green-100 text-green-700"
+                            : subject.alloc > subject.req
+                              ? "bg-red-100 text-red-700"
+                              : "bg-yellow-100 text-yellow-700"
+                        }`}
+                      >
+                        {subject.alloc === subject.req ? (
+                          <CheckCircle2 size={12} />
+                        ) : (
+                          <AlertCircle size={12} />
+                        )}
+                        {subject.alloc} / {subject.req}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {subject.gradeNames && subject.gradeNames.length > 0 ? (
-                        subject.gradeNames.slice(0, 3).map((g, i) => (
-                          <span
-                            key={i}
-                            className="text-[10px] px-1.5 py-0.5 bg-white border border-emerald-100 rounded text-emerald-600"
-                          >
-                            {g}
-                          </span>
-                        ))
+
+                    {/* Grade Breakdown with Teachers */}
+                    <div className="space-y-2">
+                      {subject.gradeDetails &&
+                      subject.gradeDetails.length > 0 ? (
+                        subject.gradeDetails.map((detail, idx) => {
+                          // 1. Find Grade Name
+                          const gradeName =
+                            grades.find((g) => g.id === detail.id)?.name ||
+                            "Unknown Class";
+
+                          // 2. Find Allocations for this specific Class+Subject
+                          const gradeAllocations = allocations.filter(
+                            (a) =>
+                              a.subjectId === subject.id &&
+                              a.gradeId === detail.id,
+                          );
+
+                          // 3. Calculate total periods assigned
+                          const gradeAllocCount = gradeAllocations.reduce(
+                            (sum, a) => sum + (parseInt(a.periodsPerWeek) || 0),
+                            0,
+                          );
+
+                          // 4. Get Unique Teacher Names
+                          const assignedTeachers = [
+                            ...new Set(
+                              gradeAllocations.map((a) => a.teacherName),
+                            ),
+                          ];
+
+                          const isComplete =
+                            gradeAllocCount >= parseInt(detail.periods);
+
+                          return (
+                            <div
+                              key={idx}
+                              className="flex justify-between items-center text-xs py-1.5 border-b border-gray-50 last:border-0"
+                            >
+                              {/* Left: Class Name */}
+                              <span className="font-semibold text-gray-700 min-w-[80px]">
+                                {gradeName}
+                              </span>
+
+                              {/* Middle: Teacher Name */}
+                              <div className="flex-1 px-3 text-left">
+                                {assignedTeachers.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {assignedTeachers.map((name, tIdx) => (
+                                      <span
+                                        key={tIdx}
+                                        className="flex items-center gap-1 bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[10px] border border-blue-100"
+                                      >
+                                        <User size={8} /> {name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-400 italic">
+                                    Unassigned
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Right: Period Count */}
+                              <span
+                                className={`${isComplete ? "text-green-600 font-bold" : "text-red-500 font-medium"}`}
+                              >
+                                {gradeAllocCount} / {detail.periods}
+                              </span>
+                            </div>
+                          );
+                        })
                       ) : (
-                        <span className="text-[10px] text-gray-400">
-                          No classes assigned
-                        </span>
-                      )}
-                      {subject.gradeNames?.length > 3 && (
-                        <span className="text-[10px] px-1.5 py-0.5 text-gray-400">
-                          +{subject.gradeNames.length - 3} more
-                        </span>
+                        <p className="text-xs text-gray-400">
+                          No classes assigned.
+                        </p>
                       )}
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-400 italic pl-1">
-                No subjects created for this department yet.
-              </p>
-            )}
+                ))
+              ) : (
+                <p className="text-sm text-gray-400 italic">
+                  No subjects found.
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+        <div className="p-4 bg-white border-t border-gray-100 flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-sm font-medium transition-colors"
           >
             Close
           </button>
