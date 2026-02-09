@@ -1,13 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Outlet,
   useParams,
   NavLink,
   useNavigate,
   Link,
+  useLocation,
 } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase/firebaseUtils";
+import { BarChart3, ChevronDown } from "lucide-react";
 
 const AllocationLayout = () => {
   const { schoolId } = useParams();
@@ -44,8 +46,8 @@ const AllocationLayout = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-        {/* CHANGED: Switched from max-w-7xl to w-[90%] to use 90% screen width */}
+      {/* Increased z-index to ensure dropdown floats above page content */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="w-[90%] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             {/* Left Side: School Info */}
@@ -69,8 +71,23 @@ const AllocationLayout = () => {
             </div>
 
             {/* Right Side: Navigation Tabs */}
-            <nav className="flex space-x-4 sm:space-x-8 -mb-px ml-6 overflow-x-auto h-full">
+            {/* REMOVED 'overflow-x-auto' to allow dropdown to show */}
+            <nav className="flex space-x-4 sm:space-x-8 -mb-px ml-6 h-full">
               <NavTab to="overview" label="Overview" />
+
+              <NavDropdown
+                label="Analytics"
+                icon={
+                  <BarChart3
+                    size={16}
+                    className="mr-1.5 inline-block -mt-0.5"
+                  />
+                }
+                items={[
+                  { label: "Supply-Demand Gap", to: "analytics/supply-demand" },
+                ]}
+              />
+
               <NavTab to="departments" label="Departments" />
               <NavTab to="classes" label="Classes" />
               <NavTab to="teachers" label="Teachers" />
@@ -81,16 +98,16 @@ const AllocationLayout = () => {
         </div>
       </header>
 
-      {/* CHANGED: Switched from max-w-7xl to w-[90%] to maximize screen usage */}
-      <main className="flex-1 w-[90%] mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <main className="flex-1 w-[90%] mx-auto py-8 px-4 sm:px-6 lg:px-8 relative z-0">
         <Outlet context={{ school }} />
       </main>
     </div>
   );
 };
 
-// NavTab styling
-const NavTab = ({ to, label }) => (
+// --- Sub-Components ---
+
+const NavTab = ({ to, label, icon }) => (
   <NavLink
     to={to}
     className={({ isActive }) =>
@@ -101,8 +118,70 @@ const NavTab = ({ to, label }) => (
       }`
     }
   >
+    {icon}
     {label}
   </NavLink>
 );
+
+const NavDropdown = ({ label, icon, items }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+  const location = useLocation();
+
+  // Highlight parent if any child is active
+  const isActive = items.some((item) => location.pathname.includes(item.to));
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative inline-flex items-center h-full" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors h-full outline-none ${
+          isActive || isOpen
+            ? "border-brand-teal text-brand-teal"
+            : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+        }`}
+      >
+        {icon}
+        {label}
+        <ChevronDown
+          size={14}
+          className={`ml-1 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {/* Dropdown Panel */}
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-0 w-56 bg-white rounded-b-md shadow-xl border border-gray-100 ring-1 ring-black ring-opacity-5 py-1 z-[100]">
+          {items.map((item, idx) => (
+            <NavLink
+              key={idx}
+              to={item.to}
+              onClick={() => setIsOpen(false)}
+              className={({ isActive }) =>
+                `block px-4 py-2.5 text-sm transition-colors ${
+                  isActive
+                    ? "bg-teal-50 text-teal-700 font-medium"
+                    : "text-gray-700 hover:bg-gray-50 hover:text-teal-600"
+                }`
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default AllocationLayout;

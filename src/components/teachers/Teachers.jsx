@@ -266,6 +266,10 @@ const Teachers = () => {
               .filter((a) => a.teacherId === teacher.id)
               .reduce((sum, a) => sum + (parseInt(a.periodsPerWeek) || 0), 0);
 
+            // Get Max Load (default to 30)
+            const maxLoad = teacher.maxLoad || 30;
+            const isOverloaded = totalWorkload > maxLoad;
+
             return (
               <div
                 key={teacher.id}
@@ -288,8 +292,18 @@ const Teachers = () => {
 
                       <div className="flex flex-wrap gap-1 mt-1">
                         {/* Workload Badge */}
-                        <span className="text-xs text-orange-700 flex items-center gap-1 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100 font-medium whitespace-nowrap">
-                          <Clock size={10} /> {totalWorkload} p/w
+                        <span
+                          className={`
+                            text-xs flex items-center gap-1 bg-opacity-50 px-1.5 py-0.5 rounded border font-medium whitespace-nowrap
+                            ${
+                              isOverloaded
+                                ? "bg-red-50 text-red-700 border-red-200"
+                                : "bg-orange-50 text-orange-700 border-orange-100"
+                            }
+                          `}
+                        >
+                          <Clock size={10} />
+                          {totalWorkload} / {maxLoad} p/w
                         </span>
 
                         {teacher.departmentNames &&

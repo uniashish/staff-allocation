@@ -16,12 +16,15 @@ import DashboardLayout from "./components/layout/DashboardLayout";
 
 // --- NEW IMPORTS ---
 import AllocationLayout from "./components/layout/AllocationLayout";
-import SchoolOverview from "./pages/allocation/SchoolOverview";
+// import SchoolOverview from "./pages/allocation/SchoolOverview"; // <--- REMOVE OR COMMENT OUT THIS
+import Overview from "./components/dashboard/Overview"; // <--- ADD THIS (Import your new Command Center)
+
 import Departments from "./components/departments/Departments";
 import Classes from "./components/classes/Classes";
 import Subjects from "./components/subjects/Subjects";
 import Teachers from "./components/teachers/Teachers";
 import Allocations from "./components/allocations/Allocations";
+import SupplyDemand from "./components/analytics/SupplyDemand";
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -45,8 +48,9 @@ function App() {
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
 
-            {/* MAIN DASHBOARD (School Selection) */}
+            {/* MAIN DASHBOARD (List of Schools) */}
             <Route
+              path="/"
               element={
                 <ProtectedRoute>
                   <DashboardLayout />
@@ -68,7 +72,9 @@ function App() {
               {/* Default redirects to overview */}
               <Route index element={<Navigate to="overview" replace />} />
 
-              <Route path="overview" element={<SchoolOverview />} />
+              {/* UPDATE THIS ROUTE TO USE YOUR NEW COMPONENT */}
+              <Route path="overview" element={<Overview />} />
+
               <Route path="departments" element={<Departments />} />
 
               {/* Placeholders for future features */}
@@ -76,6 +82,16 @@ function App() {
               <Route path="classes" element={<Classes />} />
               <Route path="subjects" element={<Subjects />} />
               <Route path="allocations" element={<Allocations />} />
+
+              {/* Analytics Routes */}
+              <Route
+                path="analytics"
+                element={<Navigate to="analytics/supply-demand" replace />}
+              />
+              <Route
+                path="analytics/supply-demand"
+                element={<SupplyDemand />}
+              />
             </Route>
 
             {/* Default Redirect */}

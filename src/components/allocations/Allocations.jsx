@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
 import {
   collection,
@@ -11,9 +11,18 @@ import {
 } from "firebase/firestore";
 import { db } from "../../firebase/firebaseUtils";
 import { useAuth } from "../../context/AuthContext";
-import { Plus, X, AlertCircle, Clock, BarChart3 } from "lucide-react"; // Added BarChart3
+import {
+  Plus,
+  X,
+  AlertCircle,
+  Clock,
+  BarChart3,
+  Star,
+  AlertTriangle,
+  Layers, // Icon for Heatmap
+} from "lucide-react";
 import TeacherDetailModal from "../teachers/TeacherDetailModal";
-import TeacherLoadMatrix from "./TeacherLoadMatrix"; // Import New Component
+import TeacherLoadMatrix from "./TeacherLoadMatrix";
 
 const Allocations = () => {
   const { school } = useOutletContext();
@@ -30,7 +39,8 @@ const Allocations = () => {
   const [activeCell, setActiveCell] = useState(null);
   const [assignPeriods, setAssignPeriods] = useState(1);
   const [viewingTeacher, setViewingTeacher] = useState(null);
-  const [isMatrixOpen, setIsMatrixOpen] = useState(false); // New state for Matrix Modal
+  const [isMatrixOpen, setIsMatrixOpen] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(false); // New State
 
   const canEdit = currentUser?.role === "super_admin";
 
@@ -74,6 +84,41 @@ const Allocations = () => {
     if (school?.id) fetchData();
   }, [school?.id]);
 
+  // Helper: Get Teacher Stats for Heatmap
+  const getTeacherStats = (teacherId) => {
+    const teacher = teachers.find((t) => t.id === teacherId);
+    if (!teacher)
+      return {
+        colorClass: "bg-gray-100 border-gray-200 text-gray-800",
+        load: 0,
+        max: 30,
+      };
+
+    const maxLoad = parseInt(teacher.maxLoad) || 30;
+    const currentLoad = allocations
+      .filter((a) => a.teacherId === teacherId)
+      .reduce((sum, a) => sum + (parseInt(a.periodsPerWeek) || 0), 0);
+
+    const utilization = (currentLoad / maxLoad) * 100;
+
+    let colorClass = "bg-indigo-50 border-indigo-200 text-indigo-900"; // Default
+
+    if (showHeatmap) {
+      if (utilization > 90) {
+        // Red - Overloaded
+        colorClass = "bg-red-100 border-red-300 text-red-800";
+      } else if (utilization >= 70) {
+        // Green - Optimal
+        colorClass = "bg-green-100 border-green-300 text-green-800";
+      } else {
+        // Blue - Underutilized
+        colorClass = "bg-blue-100 border-blue-300 text-blue-800";
+      }
+    }
+
+    return { colorClass, load: currentLoad, max: maxLoad };
+  };
+
   // Helper: Get cell constraints and current status
   const getCellStatus = (gradeId, subjectId) => {
     const subject = subjects.find((s) => s.id === subjectId);
@@ -100,13 +145,11 @@ const Allocations = () => {
     let totalAllocated = 0;
 
     subjects.forEach((subject) => {
-      // Check if subject is taught in this grade
       const detail = subject.gradeDetails?.find((g) => g.id === gradeId);
       if (detail) {
         const required = parseInt(detail.periods) || 0;
         totalRequired += required;
 
-        // Count allocated for this subject/grade
         const cellAllocations = allocations.filter(
           (a) => a.gradeId === gradeId && a.subjectId === subject.id,
         );
@@ -123,6 +166,64 @@ const Allocations = () => {
       totalAllocated,
       unallocated: totalRequired - totalAllocated,
     };
+  };
+
+  // --- SMART SUGGEST LOGIC ---
+  const getSmartSuggestions = (subjectId, gradeId, existingTeacherIds = []) => {
+    const qualified = teachers.filter(
+      (t) =>
+        t.subjectIds &&
+        t.subjectIds.includes(subjectId) &&
+        !existingTeacherIds.includes(t.id),
+    );
+
+    if (qualified.length === 0) return [];
+
+    const scoredTeachers = qualified.map((teacher) => {
+      const maxLoad = parseInt(teacher.maxLoad) || 30;
+
+      const currentLoad = allocations
+        .filter((a) => a.teacherId === teacher.id)
+        .reduce((sum, a) => sum + (parseInt(a.periodsPerWeek) || 0), 0);
+
+      const utilization = (currentLoad / maxLoad) * 100;
+      const available = maxLoad - currentLoad;
+
+      const teachesGrade = allocations.some(
+        (a) => a.teacherId === teacher.id && a.gradeId === gradeId,
+      );
+
+      let score = 0;
+      let status = "good";
+
+      if (utilization > 100) {
+        score -= 50;
+        status = "critical";
+      } else if (utilization > 90) {
+        score += 10;
+        status = "warning";
+      } else if (utilization > 75) {
+        score += 30;
+        status = "good";
+      } else {
+        score += 50;
+        status = "good";
+      }
+
+      if (teachesGrade) score += 30;
+
+      return {
+        ...teacher,
+        currentLoad,
+        maxLoad,
+        available,
+        teachesGrade,
+        status,
+        score,
+      };
+    });
+
+    return scoredTeachers.sort((a, b) => b.score - a.score);
   };
 
   // 2. Assignment Logic
@@ -146,7 +247,6 @@ const Allocations = () => {
       if (!teacher) return;
 
       const allocationId = `${grade.id}_${subject.id}_${teacher.id}`;
-
       const docRef = doc(db, "schools", school.id, "allocations", allocationId);
 
       const newAllocation = {
@@ -186,15 +286,6 @@ const Allocations = () => {
     }
   };
 
-  const getQualifiedTeachers = (subjectId, existingTeacherIds = []) => {
-    return teachers.filter(
-      (t) =>
-        t.subjectIds &&
-        t.subjectIds.includes(subjectId) &&
-        !existingTeacherIds.includes(t.id),
-    );
-  };
-
   const openAssignmentDropdown = (gradeId, subjectId, remaining) => {
     if (!canEdit) return;
     setActiveCell({ gradeId, subjectId });
@@ -217,15 +308,48 @@ const Allocations = () => {
           <p className="text-sm text-gray-600">Assign teachers to subjects.</p>
         </div>
 
-        {/* VIEW MATRIX BUTTON */}
-        <button
-          onClick={() => setIsMatrixOpen(true)}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-sm transition-colors text-sm font-medium"
-        >
-          <BarChart3 size={18} />
-          View Teacher Loads
-        </button>
+        <div className="flex gap-2">
+          {/* HEATMAP TOGGLE */}
+          <button
+            onClick={() => setShowHeatmap(!showHeatmap)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-sm transition-all text-sm font-medium border ${
+              showHeatmap
+                ? "bg-indigo-50 border-indigo-200 text-indigo-700"
+                : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <Layers size={18} />
+            {showHeatmap ? "Heatmap On" : "Heatmap Off"}
+          </button>
+
+          {/* VIEW MATRIX BUTTON */}
+          <button
+            onClick={() => setIsMatrixOpen(true)}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-sm transition-colors text-sm font-medium"
+          >
+            <BarChart3 size={18} />
+            View Loads
+          </button>
+        </div>
       </div>
+
+      {/* Legend (Only visible when Heatmap is ON) */}
+      {showHeatmap && (
+        <div className="flex items-center gap-4 mb-3 text-xs px-1 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 bg-blue-100 border border-blue-300 rounded"></span>
+            <span className="text-gray-600">Underutilized (&lt;70%)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 bg-green-100 border border-green-300 rounded"></span>
+            <span className="text-gray-600">Optimal (70-90%)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 bg-red-100 border border-red-300 rounded"></span>
+            <span className="text-gray-600">Overloaded (&gt;90%)</span>
+          </div>
+        </div>
+      )}
 
       {/* MATRIX TABLE */}
       <div className="flex-1 bg-white border border-gray-200 rounded-xl overflow-auto shadow-sm relative w-full h-[70vh] min-h-[70vh]">
@@ -310,42 +434,50 @@ const Allocations = () => {
                       >
                         <div className="flex flex-col gap-1 min-h-[40px]">
                           {/* 1. ASSIGNED TEACHERS */}
-                          {cellAllocations.map((allocation) => (
-                            <div
-                              key={allocation.id}
-                              className="flex items-center justify-between gap-1 bg-indigo-50 border border-indigo-200 rounded px-2 py-1 group"
-                            >
-                              <div className="overflow-hidden w-full">
-                                <button
-                                  onClick={() => {
-                                    const t = teachers.find(
-                                      (tea) => tea.id === allocation.teacherId,
-                                    );
-                                    if (t) setViewingTeacher(t);
-                                  }}
-                                  className="text-xs font-bold text-indigo-900 hover:underline truncate w-full text-left focus:outline-none block leading-tight"
-                                  title={`${allocation.teacherName} (${allocation.periodsPerWeek} p/w)`}
-                                >
-                                  {allocation.teacherName}
-                                </button>
-                              </div>
-                              <span className="text-xs text-indigo-800 font-mono font-bold shrink-0">
-                                {allocation.periodsPerWeek}
-                              </span>
-                              {canEdit && (
-                                <button
-                                  onClick={() =>
-                                    handleRemoveAllocation(allocation.id)
-                                  }
-                                  className="text-indigo-400 hover:text-red-600 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-0.5"
-                                >
-                                  <X size={12} />
-                                </button>
-                              )}
-                            </div>
-                          ))}
+                          {cellAllocations.map((allocation) => {
+                            // Calculate Stats for Color
+                            const { colorClass } = getTeacherStats(
+                              allocation.teacherId,
+                            );
 
-                          {/* 2. ADD BUTTON */}
+                            return (
+                              <div
+                                key={allocation.id}
+                                className={`flex items-center justify-between gap-1 border rounded px-2 py-1 group transition-colors duration-300 ${colorClass}`}
+                              >
+                                <div className="overflow-hidden w-full">
+                                  <button
+                                    onClick={() => {
+                                      const t = teachers.find(
+                                        (tea) =>
+                                          tea.id === allocation.teacherId,
+                                      );
+                                      if (t) setViewingTeacher(t);
+                                    }}
+                                    className="text-xs font-bold hover:underline truncate w-full text-left focus:outline-none block leading-tight"
+                                    title={`${allocation.teacherName} (${allocation.periodsPerWeek} p/w)`}
+                                  >
+                                    {allocation.teacherName}
+                                  </button>
+                                </div>
+                                <span className="text-xs font-mono font-bold shrink-0 opacity-80">
+                                  {allocation.periodsPerWeek}
+                                </span>
+                                {canEdit && (
+                                  <button
+                                    onClick={() =>
+                                      handleRemoveAllocation(allocation.id)
+                                    }
+                                    className="hover:text-red-600 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-0.5"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+
+                          {/* 2. ADD BUTTON & DROPDOWN */}
                           {remaining > 0 ? (
                             <div className="relative mt-0.5">
                               {!isActive ? (
@@ -371,72 +503,126 @@ const Allocations = () => {
                                     : "Assign"}
                                 </button>
                               ) : (
-                                // 3. DROPDOWN
-                                <div className="absolute top-0 left-0 w-[220px] z-50">
-                                  <div className="bg-white border border-gray-300 shadow-xl rounded-lg p-3 text-left ring-1 ring-black ring-opacity-5">
-                                    <div className="text-xs font-bold text-gray-700 mb-2 px-1 uppercase tracking-wider">
-                                      Add Teacher ({remaining} left)
-                                    </div>
-
-                                    <div className="flex items-center gap-2 mb-2 bg-blue-50 p-1.5 rounded border border-blue-200">
-                                      <Clock
-                                        size={14}
-                                        className="text-blue-600"
-                                      />
-                                      <span className="text-xs text-blue-900 font-bold whitespace-nowrap">
-                                        Periods:
+                                /* --- 3. SMART SUGGEST DROPDOWN --- */
+                                <div className="absolute top-0 left-0 w-[280px] z-50">
+                                  <div className="bg-white border border-gray-300 shadow-xl rounded-lg p-0 text-left ring-1 ring-black ring-opacity-5 overflow-hidden">
+                                    {/* Dropdown Header */}
+                                    <div className="bg-gray-50 px-3 py-2 border-b border-gray-200 flex justify-between items-center">
+                                      <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                        Assign Teacher ({remaining} left)
                                       </span>
-                                      <input
-                                        type="number"
-                                        min="1"
-                                        max={remaining}
-                                        value={assignPeriods}
-                                        onChange={(e) =>
-                                          setAssignPeriods(e.target.value)
-                                        }
-                                        className="w-12 h-6 text-xs font-bold text-center border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-black"
-                                      />
+                                      <button
+                                        onClick={() => setActiveCell(null)}
+                                        className="text-gray-400 hover:text-gray-600"
+                                      >
+                                        <X size={14} />
+                                      </button>
                                     </div>
 
-                                    <div className="max-h-40 overflow-y-auto space-y-0.5 my-1">
-                                      {getQualifiedTeachers(
-                                        subject.id,
-                                        cellAllocations.map((a) => a.teacherId),
-                                      ).length > 0 ? (
-                                        getQualifiedTeachers(
+                                    {/* Period Input */}
+                                    <div className="p-3 border-b border-gray-100 bg-white">
+                                      <div className="flex items-center gap-2 bg-blue-50 p-1.5 rounded border border-blue-200">
+                                        <Clock
+                                          size={14}
+                                          className="text-blue-600"
+                                        />
+                                        <span className="text-xs text-blue-900 font-bold whitespace-nowrap">
+                                          Periods:
+                                        </span>
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          max={remaining}
+                                          value={assignPeriods}
+                                          onChange={(e) =>
+                                            setAssignPeriods(e.target.value)
+                                          }
+                                          className="w-12 h-6 text-xs font-bold text-center border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-black"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Smart Suggestions List */}
+                                    <div className="max-h-60 overflow-y-auto">
+                                      {(() => {
+                                        const suggestions = getSmartSuggestions(
                                           subject.id,
+                                          grade.id,
                                           cellAllocations.map(
                                             (a) => a.teacherId,
                                           ),
-                                        ).map((teacher) => (
+                                        );
+
+                                        if (suggestions.length === 0) {
+                                          return (
+                                            <div className="px-4 py-6 text-center">
+                                              <AlertCircle
+                                                size={20}
+                                                className="mx-auto text-gray-300 mb-1"
+                                              />
+                                              <p className="text-xs font-medium text-gray-500 italic">
+                                                No qualified teachers found.
+                                              </p>
+                                            </div>
+                                          );
+                                        }
+
+                                        return suggestions.map((t) => (
                                           <button
-                                            key={teacher.id}
+                                            key={t.id}
                                             onClick={() =>
                                               handleAllocate(
                                                 grade,
                                                 subject,
-                                                teacher.id,
+                                                t.id,
                                               )
                                             }
-                                            className="w-full text-left px-2 py-1.5 text-xs font-medium text-gray-900 hover:bg-blue-100 hover:text-blue-900 rounded transition-colors truncate"
+                                            className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0 group"
                                           >
-                                            {teacher.name}
-                                          </button>
-                                        ))
-                                      ) : (
-                                        <div className="px-2 py-1 text-xs font-medium text-red-600 italic flex items-center gap-1">
-                                          <AlertCircle size={12} /> No teachers
-                                        </div>
-                                      )}
-                                    </div>
+                                            <div className="flex justify-between items-center mb-0.5">
+                                              <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-700">
+                                                {t.name}
+                                              </span>
+                                              {t.teachesGrade && (
+                                                <span className="text-[10px] bg-green-100 text-green-700 px-1.5 rounded font-medium flex items-center gap-0.5">
+                                                  <Star
+                                                    size={8}
+                                                    fill="currentColor"
+                                                  />{" "}
+                                                  Match
+                                                </span>
+                                              )}
+                                            </div>
 
-                                    <button
-                                      onClick={() => setActiveCell(null)}
-                                      className="w-full mt-2 border-t border-gray-200 text-xs font-bold text-gray-500 py-1.5 hover:text-gray-800 hover:bg-gray-50 rounded"
-                                    >
-                                      Cancel
-                                    </button>
+                                            <div className="flex items-center justify-between text-xs">
+                                              <div className="flex items-center gap-1.5">
+                                                {/* Load Indicator */}
+                                                <div className="flex items-center gap-1">
+                                                  <div
+                                                    className={`w-1.5 h-1.5 rounded-full ${t.status === "critical" ? "bg-red-500" : t.status === "warning" ? "bg-orange-400" : "bg-green-500"}`}
+                                                  ></div>
+                                                  <span
+                                                    className={`${t.status === "critical" ? "text-red-600 font-bold" : "text-gray-500"}`}
+                                                  >
+                                                    {t.currentLoad}/{t.maxLoad}{" "}
+                                                    load
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              {/* Warning Icon if overloaded */}
+                                              {t.status === "critical" && (
+                                                <AlertTriangle
+                                                  size={12}
+                                                  className="text-red-500"
+                                                />
+                                              )}
+                                            </div>
+                                          </button>
+                                        ));
+                                      })()}
+                                    </div>
                                   </div>
+                                  {/* Click Outside Handler */}
                                   <div
                                     className="fixed inset-0 z-[-1]"
                                     onClick={() => setActiveCell(null)}
@@ -452,6 +638,7 @@ const Allocations = () => {
                 </tr>
               );
             })}
+            \n{" "}
           </tbody>
         </table>
       </div>
