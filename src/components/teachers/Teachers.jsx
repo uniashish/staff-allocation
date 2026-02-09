@@ -19,8 +19,10 @@ import {
   GraduationCap,
   Building2,
   BookOpen,
+  Clock, // Added Clock icon
 } from "lucide-react";
 import TeacherModal from "./TeacherModal";
+import TeacherDetailModal from "./TeacherDetailModal";
 
 const Teachers = () => {
   const { school } = useOutletContext();
@@ -29,6 +31,8 @@ const Teachers = () => {
   const [teachers, setTeachers] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [subjects, setSubjects] = useState([]);
+  const [grades, setGrades] = useState([]);
+  const [allocations, setAllocations] = useState([]); // State for allocations
   const [loading, setLoading] = useState(true);
 
   // Modal State
@@ -36,14 +40,10 @@ const Teachers = () => {
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- DEBUGGING START ---
-  // Check the browser console (F12) to see the full object
-  console.log("Current User Object:", currentUser);
-  console.log("Detected Role:", currentUser?.role);
+  // Detail Modal State
+  const [viewingTeacher, setViewingTeacher] = useState(null);
 
-  // Strict check: Ensure role matches "super_admin" exactly
   const canEdit = currentUser?.role === "super_admin";
-  // --- DEBUGGING END ---
 
   // 1. Fetch All Data
   const fetchData = async () => {
@@ -73,6 +73,26 @@ const Teachers = () => {
         ...s.data(),
       }));
       setSubjects(subjList);
+
+      // Fetch Grades (Classes)
+      const gradeSnapshot = await getDocs(
+        query(collection(db, "schools", school.id, "grades"), orderBy("name")),
+      );
+      const gradeList = gradeSnapshot.docs.map((g) => ({
+        id: g.id,
+        ...g.data(),
+      }));
+      setGrades(gradeList);
+
+      // Fetch Allocations
+      const allocSnapshot = await getDocs(
+        collection(db, "schools", school.id, "allocations"),
+      );
+      const allocList = allocSnapshot.docs.map((a) => ({
+        id: a.id,
+        ...a.data(),
+      }));
+      setAllocations(allocList);
 
       // Fetch Teachers
       const teacherSnapshot = await getDocs(
@@ -134,6 +154,36 @@ const Teachers = () => {
   // 3. Delete Logic
   const handleDelete = async (id, name) => {
     if (!canEdit) return;
+
+    // Check Allocations
+    const hasAllocations = allocations.some((a) => a.teacherId === id);
+    if (hasAllocations) {
+      alert(
+        `Cannot delete ${name}. This teacher has active class allocations. Please remove them in the Allocations page first.`,
+      );
+      return;
+    }
+
+    // Check Department & Subject Associations
+    const teacherToDelete = teachers.find((t) => t.id === id);
+    if (teacherToDelete) {
+      if (
+        teacherToDelete.departmentIds &&
+        teacherToDelete.departmentIds.length > 0
+      ) {
+        alert(
+          `Cannot delete ${name}. This teacher is currently assigned to departments. Please edit the teacher and remove these assignments first.`,
+        );
+        return;
+      }
+
+      if (teacherToDelete.subjectIds && teacherToDelete.subjectIds.length > 0) {
+        alert(
+          `Cannot delete ${name}. This teacher is currently assigned to subjects. Please edit the teacher and remove these assignments first.`,
+        );
+        return;
+      }
+    }
 
     if (window.confirm(`Are you sure you want to delete ${name}?`)) {
       try {
@@ -210,82 +260,99 @@ const Teachers = () => {
       ) : (
         /* Grid Layout */
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {teachers.map((teacher) => (
-            <div
-              key={teacher.id}
-              className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group flex flex-col h-full"
-            >
-              {/* Card Header */}
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-lg">
-                    {teacher.name.charAt(0)}
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 leading-tight">
-                      {teacher.name}
-                    </h3>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {teacher.departmentNames &&
-                        teacher.departmentNames.map((dept, i) => (
-                          <span
-                            key={i}
-                            className="text-xs text-gray-500 flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 rounded"
-                          >
-                            {dept}
-                          </span>
-                        ))}
+          {teachers.map((teacher) => {
+            // CALCULATE WORKLOAD
+            const totalWorkload = allocations
+              .filter((a) => a.teacherId === teacher.id)
+              .reduce((sum, a) => sum + (parseInt(a.periodsPerWeek) || 0), 0);
+
+            return (
+              <div
+                key={teacher.id}
+                className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group flex flex-col h-full"
+              >
+                {/* Card Header */}
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-center gap-3 w-full">
+                    <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-lg shrink-0">
+                      {teacher.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {/* Name Button */}
+                      <button
+                        onClick={() => setViewingTeacher(teacher)}
+                        className="font-semibold text-gray-900 leading-tight hover:text-blue-600 hover:underline text-left truncate w-full focus:outline-none"
+                      >
+                        {teacher.name}
+                      </button>
+
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {/* Workload Badge */}
+                        <span className="text-xs text-orange-700 flex items-center gap-1 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100 font-medium whitespace-nowrap">
+                          <Clock size={10} /> {totalWorkload} p/w
+                        </span>
+
+                        {teacher.departmentNames &&
+                          teacher.departmentNames.map((dept, i) => (
+                            <span
+                              key={i}
+                              className="text-xs text-gray-500 flex items-center gap-1 bg-gray-50 px-1.5 py-0.5 rounded"
+                            >
+                              {dept}
+                            </span>
+                          ))}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Actions - Only visible to super_admin */}
-                {canEdit && (
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => openEditModal(teacher)}
-                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md"
-                    >
-                      <Pencil size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(teacher.id, teacher.name)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Subjects List */}
-              <div className="mt-auto pt-3 border-t border-gray-50">
-                <p className="text-xs text-gray-400 mb-2 flex items-center gap-1">
-                  <BookOpen size={12} /> Teaches:
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {teacher.subjectNames && teacher.subjectNames.length > 0 ? (
-                    teacher.subjectNames.map((subj, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-100"
+                  {/* Actions - Only visible to super_admin */}
+                  {canEdit && (
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0">
+                      <button
+                        onClick={() => openEditModal(teacher)}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md"
                       >
-                        {subj}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-gray-400 italic">
-                      No subjects assigned
-                    </span>
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(teacher.id, teacher.name)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   )}
                 </div>
+
+                {/* Subjects List */}
+                <div className="mt-auto pt-3 border-t border-gray-50">
+                  <p className="text-xs text-gray-400 mb-2 flex items-center gap-1">
+                    <BookOpen size={12} /> Teaches:
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {teacher.subjectNames && teacher.subjectNames.length > 0 ? (
+                      teacher.subjectNames.map((subj, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-100"
+                        >
+                          {subj}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">
+                        No subjects assigned
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* Modal - Always conditionally rendered */}
+      {/* Edit/Add Modal */}
       {canEdit && (
         <TeacherModal
           isOpen={isModalOpen}
@@ -297,6 +364,14 @@ const Teachers = () => {
           subjects={subjects}
         />
       )}
+
+      {/* Detail View Modal - NOW RECEIVES ALLOCATIONS */}
+      <TeacherDetailModal
+        isOpen={!!viewingTeacher}
+        onClose={() => setViewingTeacher(null)}
+        teacher={viewingTeacher}
+        allocations={allocations}
+      />
     </div>
   );
 };

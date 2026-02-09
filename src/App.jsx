@@ -21,6 +21,7 @@ import Departments from "./components/departments/Departments";
 import Classes from "./components/classes/Classes";
 import Subjects from "./components/subjects/Subjects";
 import Teachers from "./components/teachers/Teachers";
+import Allocations from "./components/allocations/Allocations";
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -74,12 +75,7 @@ function App() {
               <Route path="teachers" element={<Teachers />} />
               <Route path="classes" element={<Classes />} />
               <Route path="subjects" element={<Subjects />} />
-              <Route
-                path="allocations"
-                element={
-                  <div className="p-8">Allocation Matrix (Coming Soon)</div>
-                }
-              />
+              <Route path="allocations" element={<Allocations />} />
             </Route>
 
             {/* Default Redirect */}

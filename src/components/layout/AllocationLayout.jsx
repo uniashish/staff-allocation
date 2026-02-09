@@ -45,25 +45,19 @@ const AllocationLayout = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* CHANGED: Switched from max-w-7xl to w-[90%] to use 90% screen width */}
+        <div className="w-[90%] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            {/* Left Side: Back Nav + School Title */}
-            <div className="flex items-center">
-              {/* Back Button Group */}
-              <Link
-                to="/dashboard"
-                className="group flex items-center gap-2 text-brand-teal hover:text-teal-700 transition-colors mr-8"
-              >
-                <span className="text-2xl transform group-hover:-translate-x-1 transition-transform">
-                  ←
-                </span>
-                <span className="text-sm font-medium">Dashboard</span>
-              </Link>
-
-              {/* Vertical Divider (Optional visual separation, remove if unwanted) */}
-              <div className="h-8 w-px bg-gray-200 mr-8 hidden sm:block"></div>
-
-              {/* School Details Column - Ensures location is exactly under name */}
+            {/* Left Side: School Info */}
+            <div className="flex">
+              <div className="flex-shrink-0 flex items-center">
+                <Link
+                  to="/dashboard"
+                  className="text-gray-400 hover:text-gray-500 transition-colors mr-4"
+                >
+                  &larr; Back
+                </Link>
+              </div>
               <div className="flex flex-col justify-center">
                 <h1 className="text-xl font-bold text-gray-900 leading-tight">
                   {school.name}
@@ -87,14 +81,15 @@ const AllocationLayout = () => {
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      {/* CHANGED: Switched from max-w-7xl to w-[90%] to maximize screen usage */}
+      <main className="flex-1 w-[90%] mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <Outlet context={{ school }} />
       </main>
     </div>
   );
 };
 
-// Updated NavTab styling
+// NavTab styling
 const NavTab = ({ to, label }) => (
   <NavLink
     to={to}

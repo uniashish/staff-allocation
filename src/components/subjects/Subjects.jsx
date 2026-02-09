@@ -19,6 +19,7 @@ const Subjects = () => {
   const [subjects, setSubjects] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [grades, setGrades] = useState([]);
+  const [allocations, setAllocations] = useState([]); // New state for validation
   const [loading, setLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -50,7 +51,7 @@ const Subjects = () => {
         deptSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
       );
 
-      // Fetch Grades (For Checkboxes) - Sorted by name for now
+      // Fetch Grades (For Checkboxes)
       const gradesQuery = query(
         collection(db, "schools", school.id, "grades"),
         orderBy("name"),
@@ -58,6 +59,14 @@ const Subjects = () => {
       const gradesSnapshot = await getDocs(gradesQuery);
       setGrades(
         gradesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+      );
+
+      // Fetch Allocations (For Validation)
+      const allocSnapshot = await getDocs(
+        collection(db, "schools", school.id, "allocations"),
+      );
+      setAllocations(
+        allocSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
       );
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -79,9 +88,11 @@ const Subjects = () => {
       const payload = {
         name: formData.name,
         departmentId: formData.departmentId,
-        departmentName: formData.departmentName, // Store name for easier display
-        gradeIds: formData.gradeIds,
-        gradeNames: formData.gradeNames, // Store names for easier display
+        departmentName: formData.departmentName,
+        gradeIds: formData.gradeIds, // Maintain for indexing/filtering
+        gradeDetails: formData.gradeDetails, // New Structure: [{id, name, periods}, ...]
+        // Keeping gradeNames for backward compatibility if needed
+        gradeNames: formData.gradeDetails.map((g) => g.name),
         updatedAt: new Date(),
       };
 
@@ -108,6 +119,15 @@ const Subjects = () => {
   };
 
   const handleDelete = async (id, name) => {
+    // Check for allocations before deleting the entire subject
+    const hasAllocations = allocations.some((a) => a.subjectId === id);
+    if (hasAllocations) {
+      alert(
+        `Cannot delete "${name}". It has active teacher allocations. Please remove them in the Allocations page first.`,
+      );
+      return;
+    }
+
     if (window.confirm(`Are you sure you want to delete ${name}?`)) {
       try {
         await deleteDoc(doc(db, "schools", school.id, "subjects", id));
@@ -148,7 +168,7 @@ const Subjects = () => {
             Subject Management
           </h2>
           <p className="text-sm text-gray-500">
-            Manage subjects and assign them to departments and classes.
+            Manage subjects, assign to departments, and set periods per class.
           </p>
         </div>
         <button
@@ -211,9 +231,27 @@ const Subjects = () => {
               </div>
 
               <div className="mt-auto pt-3 border-t border-gray-50">
-                <p className="text-xs text-gray-400 mb-2">Taught in:</p>
+                <p className="text-xs text-gray-400 mb-2">
+                  Taught in (Periods):
+                </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {subject.gradeNames && subject.gradeNames.length > 0 ? (
+                  {/* Prioritize new data structure (gradeDetails) */}
+                  {subject.gradeDetails && subject.gradeDetails.length > 0 ? (
+                    subject.gradeDetails.map((detail, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700"
+                      >
+                        {detail.name}
+                        {detail.periods > 0 && (
+                          <span className="ml-1 text-gray-400">
+                            ({detail.periods})
+                          </span>
+                        )}
+                      </span>
+                    ))
+                  ) : subject.gradeNames && subject.gradeNames.length > 0 ? (
+                    // Fallback for old data without periods
                     subject.gradeNames.map((gradeName, idx) => (
                       <span
                         key={idx}
@@ -241,8 +279,9 @@ const Subjects = () => {
         onSubmit={handleSave}
         initialData={editingSubject}
         isSubmitting={isSubmitting}
-        departments={departments} // Passing data down
-        grades={grades} // Passing data down
+        departments={departments}
+        grades={grades}
+        allocations={allocations} // Passing allocations for validation
       />
     </div>
   );

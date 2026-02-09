@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X, Check, ChevronDown } from "lucide-react"; // Added ChevronDown
+import { X, Check, ChevronDown, Clock } from "lucide-react";
 
 const SubjectModal = ({
   isOpen,
@@ -9,10 +9,13 @@ const SubjectModal = ({
   isSubmitting,
   departments,
   grades,
+  allocations, // Receive allocations
 }) => {
   const [name, setName] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [selectedGradeIds, setSelectedGradeIds] = useState([]);
+  // New State: Track periods for each grade { gradeId: numberOfPeriods }
+  const [gradePeriods, setGradePeriods] = useState({});
 
   useEffect(() => {
     if (isOpen) {
@@ -20,10 +23,22 @@ const SubjectModal = ({
         setName(initialData.name);
         setDepartmentId(initialData.departmentId || "");
         setSelectedGradeIds(initialData.gradeIds || []);
+
+        // Load existing period data if available
+        if (initialData.gradeDetails) {
+          const periodsMap = {};
+          initialData.gradeDetails.forEach((detail) => {
+            periodsMap[detail.id] = detail.periods;
+          });
+          setGradePeriods(periodsMap);
+        } else {
+          setGradePeriods({});
+        }
       } else {
         setName("");
         setDepartmentId("");
         setSelectedGradeIds([]);
+        setGradePeriods({});
       }
     }
   }, [isOpen, initialData]);
@@ -31,11 +46,42 @@ const SubjectModal = ({
   if (!isOpen) return null;
 
   const toggleGrade = (gradeId) => {
-    setSelectedGradeIds((prev) =>
-      prev.includes(gradeId)
-        ? prev.filter((id) => id !== gradeId)
-        : [...prev, gradeId],
-    );
+    setSelectedGradeIds((prev) => {
+      const isSelected = prev.includes(gradeId);
+      if (isSelected) {
+        // --- VALIDATION START ---
+        // If we are editing an existing subject, check for active allocations before removing
+        if (initialData && allocations) {
+          const hasAllocations = allocations.some(
+            (a) => a.subjectId === initialData.id && a.gradeId === gradeId,
+          );
+
+          if (hasAllocations) {
+            alert(
+              "Cannot remove this class. There are active teacher allocations for this subject in this class. Please remove the allocations first.",
+            );
+            return prev; // Do not update state
+          }
+        }
+        // --- VALIDATION END ---
+
+        // Removing: Clean up periods state (optional but cleaner)
+        const newPeriods = { ...gradePeriods };
+        delete newPeriods[gradeId];
+        setGradePeriods(newPeriods);
+        return prev.filter((id) => id !== gradeId);
+      } else {
+        // Adding: Default periods to 0 or empty
+        return [...prev, gradeId];
+      }
+    });
+  };
+
+  const handlePeriodChange = (gradeId, value) => {
+    setGradePeriods((prev) => ({
+      ...prev,
+      [gradeId]: parseInt(value) || 0,
+    }));
   };
 
   const handleSubmit = (e) => {
@@ -43,16 +89,21 @@ const SubjectModal = ({
 
     const selectedDept = departments.find((d) => d.id === departmentId);
 
-    const selectedGradesData = grades
+    // Create the structured grade details array
+    const gradeDetails = grades
       .filter((g) => selectedGradeIds.includes(g.id))
-      .map((g) => ({ id: g.id, name: g.name }));
+      .map((g) => ({
+        id: g.id,
+        name: g.name,
+        periods: gradePeriods[g.id] || 0, // Include the periods count
+      }));
 
     onSubmit({
       name,
       departmentId,
       departmentName: selectedDept ? selectedDept.name : "Unknown",
-      gradeIds: selectedGradeIds,
-      gradeNames: selectedGradesData.map((g) => g.name),
+      gradeIds: selectedGradeIds, // Keep IDs for easy filtering
+      gradeDetails, // New field containing IDs, Names, and Periods
     });
   };
 
@@ -123,43 +174,80 @@ const SubjectModal = ({
               )}
             </div>
 
-            {/* Classes Multi-Select */}
+            {/* Classes Multi-Select with Periods */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Taught In (Select Classes)
+                Taught In (Select Classes & Set Periods)
               </label>
               {grades.length === 0 ? (
                 <p className="text-sm text-gray-500 italic">
                   No classes available.
                 </p>
               ) : (
-                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
-                  {grades.map((grade) => (
-                    <div
-                      key={grade.id}
-                      onClick={() => toggleGrade(grade.id)}
-                      className={`
-                        flex items-center gap-2 p-2 rounded-md cursor-pointer border transition-all
+                <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                  {grades.map((grade) => {
+                    const isSelected = selectedGradeIds.includes(grade.id);
+                    return (
+                      <div
+                        key={grade.id}
+                        className={`
+                        flex items-center justify-between p-2 rounded-md border transition-all
                         ${
-                          selectedGradeIds.includes(grade.id)
-                            ? "bg-blue-50 border-blue-200 text-blue-700"
+                          isSelected
+                            ? "bg-blue-50 border-blue-200"
                             : "hover:bg-gray-50 border-transparent"
                         }
                       `}
-                    >
-                      <div
-                        className={`
-                        w-4 h-4 rounded border flex items-center justify-center transition-colors
-                        ${selectedGradeIds.includes(grade.id) ? "bg-blue-500 border-blue-500" : "border-gray-300 bg-white"}
-                      `}
                       >
-                        {selectedGradeIds.includes(grade.id) && (
-                          <Check size={12} className="text-white" />
+                        {/* Checkbox and Name Area */}
+                        <div
+                          className="flex items-center gap-3 cursor-pointer flex-1"
+                          onClick={() => toggleGrade(grade.id)}
+                        >
+                          <div
+                            className={`
+                            w-5 h-5 rounded border flex items-center justify-center transition-colors
+                            ${
+                              isSelected
+                                ? "bg-blue-500 border-blue-500"
+                                : "border-gray-300 bg-white"
+                            }
+                          `}
+                          >
+                            {isSelected && (
+                              <Check size={14} className="text-white" />
+                            )}
+                          </div>
+                          <span
+                            className={`text-sm select-none ${isSelected ? "text-blue-900 font-medium" : "text-gray-700"}`}
+                          >
+                            {grade.name}
+                          </span>
+                        </div>
+
+                        {/* Periods Input - Only visible if selected */}
+                        {isSelected && (
+                          <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                            <Clock size={14} className="text-blue-400" />
+                            <input
+                              type="number"
+                              min="1"
+                              placeholder="#"
+                              className="w-16 px-2 py-1 text-sm border border-blue-200 rounded focus:ring-1 focus:ring-blue-500 outline-none text-center"
+                              value={gradePeriods[grade.id] || ""}
+                              onChange={(e) =>
+                                handlePeriodChange(grade.id, e.target.value)
+                              }
+                              onClick={(e) => e.stopPropagation()} // Prevent toggling when clicking input
+                            />
+                            <span className="text-xs text-blue-500 font-medium">
+                              p/w
+                            </span>
+                          </div>
                         )}
                       </div>
-                      <span className="text-sm select-none">{grade.name}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
               <p className="text-xs text-gray-500 mt-2">

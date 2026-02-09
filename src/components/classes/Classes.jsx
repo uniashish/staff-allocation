@@ -11,12 +11,15 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { db } from "../../firebase/firebaseUtils";
-import { Plus, Pencil, Trash2, Layers, Users, Clock } from "lucide-react"; // Added Clock icon
+import { Plus, Pencil, Trash2, Layers, Users, Clock } from "lucide-react";
 import ClassModal from "./ClassModal";
+import ClassDetailModal from "./ClassDetailModal"; // Import new modal
 
 const Classes = () => {
   const { school } = useOutletContext();
   const [grades, setGrades] = useState([]);
+  const [teachers, setTeachers] = useState([]); // Need teachers for detail view
+  const [subjects, setSubjects] = useState([]); // Need subjects for detail view
   const [loading, setLoading] = useState(true);
 
   // Modal State
@@ -24,28 +27,53 @@ const Classes = () => {
   const [editingGrade, setEditingGrade] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 1. Fetch Grades
-  const fetchGrades = async () => {
+  // Detail Modal State
+  const [viewingGrade, setViewingGrade] = useState(null);
+
+  // 1. Fetch All Data
+  const fetchData = async () => {
     try {
-      const q = query(
-        collection(db, "schools", school.id, "grades"),
-        orderBy("name", "asc"),
+      // Fetch Grades
+      const gradeSnapshot = await getDocs(
+        query(
+          collection(db, "schools", school.id, "grades"),
+          orderBy("name", "asc"),
+        ),
       );
-      const querySnapshot = await getDocs(q);
-      const list = querySnapshot.docs.map((doc) => ({
+      const gradeList = gradeSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
-      setGrades(list);
+      setGrades(gradeList);
+
+      // Fetch Teachers (For Detail View)
+      const teacherSnapshot = await getDocs(
+        collection(db, "schools", school.id, "teachers"),
+      );
+      const teacherList = teacherSnapshot.docs.map((t) => ({
+        id: t.id,
+        ...t.data(),
+      }));
+      setTeachers(teacherList);
+
+      // Fetch Subjects (For Detail View)
+      const subjectSnapshot = await getDocs(
+        collection(db, "schools", school.id, "subjects"),
+      );
+      const subjectList = subjectSnapshot.docs.map((s) => ({
+        id: s.id,
+        ...s.data(),
+      }));
+      setSubjects(subjectList);
     } catch (error) {
-      console.error("Error fetching grades:", error);
+      console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (school?.id) fetchGrades();
+    if (school?.id) fetchData();
   }, [school?.id]);
 
   // 2. Add or Edit Logic
@@ -58,7 +86,7 @@ const Classes = () => {
         name: formData.name,
         sectionCount: formData.sectionCount,
         totalStudents: formData.totalStudents,
-        periodsPerWeek: formData.periodsPerWeek, // New Field
+        periodsPerWeek: formData.periodsPerWeek,
         updatedAt: new Date(),
       };
 
@@ -74,7 +102,7 @@ const Classes = () => {
         });
       }
 
-      await fetchGrades();
+      await fetchData();
       handleCloseModal();
     } catch (error) {
       console.error("Error saving grade:", error);
@@ -156,38 +184,51 @@ const Classes = () => {
               key={grade.id}
               className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group flex flex-col justify-between"
             >
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-bold text-gray-900 text-lg">
-                    {grade.name}
-                  </h3>
-                  {/* Badges Container */}
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
-                      <Layers size={12} /> {grade.sectionCount} Sections
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-100">
-                      <Users size={12} /> {grade.totalStudents || 0} Students
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100">
-                      <Clock size={12} /> {grade.periodsPerWeek || 0} p/w
-                    </span>
-                  </div>
-                </div>
+              <div>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    {/* CLICKABLE NAME - Opens Detail Modal */}
+                    <button
+                      onClick={() => setViewingGrade(grade)}
+                      className="font-bold text-gray-900 text-lg hover:text-blue-600 hover:underline decoration-blue-300 underline-offset-4 text-left focus:outline-none"
+                    >
+                      {grade.name}
+                    </button>
 
-                <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => openEditModal(grade)}
-                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md"
-                  >
-                    <Pencil size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(grade.id, grade.name)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                    {/* Badges Container */}
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                        <Layers size={12} /> {grade.sectionCount} Sections
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-green-50 text-green-700 border border-green-100">
+                        <Users size={12} /> {grade.totalStudents || 0} Students
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100">
+                        <Clock size={12} /> {grade.periodsPerWeek || 0} p/w
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditModal(grade);
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(grade.id, grade.name);
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -195,12 +236,22 @@ const Classes = () => {
         </div>
       )}
 
+      {/* Edit/Create Modal */}
       <ClassModal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onSubmit={handleSave}
         initialData={editingGrade}
         isSubmitting={isSubmitting}
+      />
+
+      {/* NEW Detail Modal */}
+      <ClassDetailModal
+        isOpen={!!viewingGrade}
+        onClose={() => setViewingGrade(null)}
+        grade={viewingGrade}
+        teachers={teachers}
+        subjects={subjects}
       />
     </div>
   );
