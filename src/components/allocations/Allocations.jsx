@@ -11,8 +11,9 @@ import {
 } from "firebase/firestore";
 import { db } from "../../firebase/firebaseUtils";
 import { useAuth } from "../../context/AuthContext";
-import { Plus, X, AlertCircle, Clock } from "lucide-react";
+import { Plus, X, AlertCircle, Clock, BarChart3 } from "lucide-react"; // Added BarChart3
 import TeacherDetailModal from "../teachers/TeacherDetailModal";
+import TeacherLoadMatrix from "./TeacherLoadMatrix"; // Import New Component
 
 const Allocations = () => {
   const { school } = useOutletContext();
@@ -26,9 +27,10 @@ const Allocations = () => {
   const [loading, setLoading] = useState(true);
 
   // UI State
-  const [activeCell, setActiveCell] = useState(null); // { gradeId, subjectId }
+  const [activeCell, setActiveCell] = useState(null);
   const [assignPeriods, setAssignPeriods] = useState(1);
   const [viewingTeacher, setViewingTeacher] = useState(null);
+  const [isMatrixOpen, setIsMatrixOpen] = useState(false); // New state for Matrix Modal
 
   const canEdit = currentUser?.role === "super_admin";
 
@@ -207,16 +209,26 @@ const Allocations = () => {
   return (
     <div className="flex flex-col h-full w-full">
       {/* Header */}
-      <div className="mb-4">
-        <h2 className="text-xl font-bold text-gray-900">
-          Teaching Allocations
-        </h2>
-        <p className="text-sm text-gray-600">Assign teachers to subjects.</p>
+      <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">
+            Teaching Allocations
+          </h2>
+          <p className="text-sm text-gray-600">Assign teachers to subjects.</p>
+        </div>
+
+        {/* VIEW MATRIX BUTTON */}
+        <button
+          onClick={() => setIsMatrixOpen(true)}
+          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-sm transition-colors text-sm font-medium"
+        >
+          <BarChart3 size={18} />
+          View Teacher Loads
+        </button>
       </div>
 
       {/* MATRIX TABLE */}
-      {/* Removed table-fixed to allow natural expansion */}
-      <div className="flex-1 bg-white border border-gray-200 rounded-xl overflow-auto shadow-sm relative w-full">
+      <div className="flex-1 bg-white border border-gray-200 rounded-xl overflow-auto shadow-sm relative w-full h-[70vh] min-h-[70vh]">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-100 sticky top-0 z-20 shadow-sm">
             <tr>
@@ -227,7 +239,6 @@ const Allocations = () => {
               {subjects.map((subject) => (
                 <th
                   key={subject.id}
-                  // Increased min-width for better screen usage
                   className="px-2 py-3 text-center text-sm font-bold text-gray-900 uppercase tracking-wider min-w-[180px] border-r border-gray-200 last:border-0"
                   title={subject.name}
                 >
@@ -433,8 +444,7 @@ const Allocations = () => {
                                 </div>
                               )}
                             </div>
-                          ) : // REMOVED "MAX REACHED" LABEL AS REQUESTED
-                          null}
+                          ) : null}
                         </div>
                       </td>
                     );
@@ -450,6 +460,15 @@ const Allocations = () => {
         isOpen={!!viewingTeacher}
         onClose={() => setViewingTeacher(null)}
         teacher={viewingTeacher}
+        allocations={allocations}
+      />
+
+      {/* NEW LOAD MATRIX MODAL */}
+      <TeacherLoadMatrix
+        isOpen={isMatrixOpen}
+        onClose={() => setIsMatrixOpen(false)}
+        teachers={teachers}
+        subjects={subjects}
         allocations={allocations}
       />
     </div>

@@ -9,12 +9,12 @@ const SubjectModal = ({
   isSubmitting,
   departments,
   grades,
-  allocations, // Receive allocations
+  allocations,
+  subjects, // Recieve subjects to calculate total periods
 }) => {
   const [name, setName] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [selectedGradeIds, setSelectedGradeIds] = useState([]);
-  // New State: Track periods for each grade { gradeId: numberOfPeriods }
   const [gradePeriods, setGradePeriods] = useState({});
 
   useEffect(() => {
@@ -24,7 +24,6 @@ const SubjectModal = ({
         setDepartmentId(initialData.departmentId || "");
         setSelectedGradeIds(initialData.gradeIds || []);
 
-        // Load existing period data if available
         if (initialData.gradeDetails) {
           const periodsMap = {};
           initialData.gradeDetails.forEach((detail) => {
@@ -49,8 +48,7 @@ const SubjectModal = ({
     setSelectedGradeIds((prev) => {
       const isSelected = prev.includes(gradeId);
       if (isSelected) {
-        // --- VALIDATION START ---
-        // If we are editing an existing subject, check for active allocations before removing
+        // --- VALIDATION: Check for active allocations before removing ---
         if (initialData && allocations) {
           const hasAllocations = allocations.some(
             (a) => a.subjectId === initialData.id && a.gradeId === gradeId,
@@ -60,27 +58,66 @@ const SubjectModal = ({
             alert(
               "Cannot remove this class. There are active teacher allocations for this subject in this class. Please remove the allocations first.",
             );
-            return prev; // Do not update state
+            return prev;
           }
         }
-        // --- VALIDATION END ---
 
-        // Removing: Clean up periods state (optional but cleaner)
         const newPeriods = { ...gradePeriods };
         delete newPeriods[gradeId];
         setGradePeriods(newPeriods);
         return prev.filter((id) => id !== gradeId);
       } else {
-        // Adding: Default periods to 0 or empty
+        // Adding: Default periods to 0
         return [...prev, gradeId];
       }
     });
   };
 
   const handlePeriodChange = (gradeId, value) => {
+    const inputValue = parseInt(value) || 0;
+
+    // --- NEW VALIDATION LOGIC ---
+
+    // 1. Find the Class (Grade) and its maximum limit
+    const grade = grades.find((g) => g.id === gradeId);
+    if (!grade) return;
+    const maxPeriods = parseInt(grade.periodsPerWeek) || 0;
+
+    // 2. Calculate periods already used by OTHER subjects for this grade
+    let usedByOthers = 0;
+
+    // Filter out the subject currently being edited to avoid double counting
+    const otherSubjects = subjects.filter(
+      (s) => !initialData || s.id !== initialData.id,
+    );
+
+    otherSubjects.forEach((subj) => {
+      // Check if this subject is taught in the current gradeId
+      const gradeDetail = subj.gradeDetails?.find((d) => d.id === gradeId);
+      if (gradeDetail) {
+        usedByOthers += parseInt(gradeDetail.periods) || 0;
+      }
+    });
+
+    // 3. Check if new input exceeds remaining allowance
+    const totalIfUpdated = usedByOthers + inputValue;
+
+    if (totalIfUpdated > maxPeriods) {
+      alert(
+        `Cannot assign ${inputValue} periods.\n\n` +
+          `Class: ${grade.name}\n` +
+          `Max Allowed: ${maxPeriods}\n` +
+          `Already Assigned (Other Subjects): ${usedByOthers}\n` +
+          `Remaining: ${maxPeriods - usedByOthers}`,
+      );
+      // Do not update state, effectively rejecting the input
+      return;
+    }
+    // --- END VALIDATION ---
+
     setGradePeriods((prev) => ({
       ...prev,
-      [gradeId]: parseInt(value) || 0,
+      [gradeId]: inputValue,
     }));
   };
 
@@ -89,21 +126,20 @@ const SubjectModal = ({
 
     const selectedDept = departments.find((d) => d.id === departmentId);
 
-    // Create the structured grade details array
     const gradeDetails = grades
       .filter((g) => selectedGradeIds.includes(g.id))
       .map((g) => ({
         id: g.id,
         name: g.name,
-        periods: gradePeriods[g.id] || 0, // Include the periods count
+        periods: gradePeriods[g.id] || 0,
       }));
 
     onSubmit({
       name,
       departmentId,
       departmentName: selectedDept ? selectedDept.name : "Unknown",
-      gradeIds: selectedGradeIds, // Keep IDs for easy filtering
-      gradeDetails, // New field containing IDs, Names, and Periods
+      gradeIds: selectedGradeIds,
+      gradeDetails,
     });
   };
 
@@ -141,7 +177,7 @@ const SubjectModal = ({
               />
             </div>
 
-            {/* Department Select - Styled */}
+            {/* Department Select */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Department
@@ -162,7 +198,6 @@ const SubjectModal = ({
                     </option>
                   ))}
                 </select>
-                {/* Custom Arrow Icon */}
                 <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400">
                   <ChevronDown size={20} />
                 </div>
@@ -231,14 +266,14 @@ const SubjectModal = ({
                             <Clock size={14} className="text-blue-400" />
                             <input
                               type="number"
-                              min="1"
+                              min="0"
                               placeholder="#"
                               className="w-16 px-2 py-1 text-sm border border-blue-200 rounded focus:ring-1 focus:ring-blue-500 outline-none text-center"
                               value={gradePeriods[grade.id] || ""}
                               onChange={(e) =>
                                 handlePeriodChange(grade.id, e.target.value)
                               }
-                              onClick={(e) => e.stopPropagation()} // Prevent toggling when clicking input
+                              onClick={(e) => e.stopPropagation()}
                             />
                             <span className="text-xs text-blue-500 font-medium">
                               p/w

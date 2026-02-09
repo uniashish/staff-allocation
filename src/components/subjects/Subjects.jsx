@@ -281,7 +281,8 @@ const Subjects = () => {
         isSubmitting={isSubmitting}
         departments={departments}
         grades={grades}
-        allocations={allocations} // Passing allocations for validation
+        allocations={allocations}
+        subjects={subjects} // ADDED THIS PROP
       />
     </div>
   );
