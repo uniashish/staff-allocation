@@ -143,8 +143,19 @@ const Teachers = () => {
     }
   };
 
-  // Delete Logic
+  // Delete Logic (Updated with Check)
   const handleDelete = async (id, name) => {
+    // 1. Check for allocations
+    const hasAllocations = allocations.some((a) => a.teacherId === id);
+
+    if (hasAllocations) {
+      alert(
+        `Cannot delete ${name} because they have active class allocations. Please remove their classes first.`,
+      );
+      return;
+    }
+
+    // 2. Proceed if safe
     if (window.confirm(`Delete ${name}?`)) {
       try {
         await deleteDoc(doc(db, "schools", school.id, "teachers", id));
