@@ -25,6 +25,7 @@ import Subjects from "./components/subjects/Subjects";
 import Teachers from "./components/teachers/Teachers";
 import Allocations from "./components/allocations/Allocations";
 import SupplyDemand from "./components/analytics/SupplyDemand";
+import SmartAllocation from "./components/analytics/SmartAllocation"; // <--- NEW COMPONENT FOR SMART ALLOCATE
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -91,6 +92,10 @@ function App() {
               <Route
                 path="analytics/supply-demand"
                 element={<SupplyDemand />}
+              />
+              <Route
+                path="analytics/smart-allocate"
+                element={<SmartAllocation />}
               />
             </Route>
 

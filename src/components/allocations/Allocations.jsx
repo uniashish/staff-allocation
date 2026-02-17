@@ -19,7 +19,7 @@ import {
   BarChart3,
   Star,
   AlertTriangle,
-  Layers, // Icon for Heatmap
+  Layers,
 } from "lucide-react";
 import TeacherDetailModal from "../teachers/TeacherDetailModal";
 import TeacherLoadMatrix from "./TeacherLoadMatrix";
@@ -40,7 +40,7 @@ const Allocations = () => {
   const [assignPeriods, setAssignPeriods] = useState(1);
   const [viewingTeacher, setViewingTeacher] = useState(null);
   const [isMatrixOpen, setIsMatrixOpen] = useState(false);
-  const [showHeatmap, setShowHeatmap] = useState(false); // New State
+  const [showHeatmap, setShowHeatmap] = useState(false);
 
   const canEdit = currentUser?.role === "super_admin";
 
@@ -105,13 +105,10 @@ const Allocations = () => {
 
     if (showHeatmap) {
       if (utilization > 90) {
-        // Red - Overloaded
         colorClass = "bg-red-100 border-red-300 text-red-800";
       } else if (utilization >= 70) {
-        // Green - Optimal
         colorClass = "bg-green-100 border-green-300 text-green-800";
       } else {
-        // Blue - Underutilized
         colorClass = "bg-blue-100 border-blue-300 text-blue-800";
       }
     }
@@ -174,7 +171,7 @@ const Allocations = () => {
     };
   };
 
-  // --- SMART SUGGEST LOGIC ---
+  // --- SMART SUGGEST LOGIC (FIXED) ---
   const getSmartSuggestions = (subjectId, gradeId, existingTeacherIds = []) => {
     const qualified = teachers.filter(
       (t) =>
@@ -185,49 +182,58 @@ const Allocations = () => {
 
     if (qualified.length === 0) return [];
 
-    const scoredTeachers = qualified.map((teacher) => {
-      const maxLoad = parseInt(teacher.maxLoad) || 30;
+    const scoredTeachers = qualified
+      .map((teacher) => {
+        const maxLoad = parseInt(teacher.maxLoad) || 30;
 
-      const currentLoad = allocations
-        .filter((a) => a.teacherId === teacher.id)
-        .reduce((sum, a) => sum + (parseInt(a.periodsPerWeek) || 0), 0);
+        const currentLoad = allocations
+          .filter((a) => a.teacherId === teacher.id)
+          .reduce((sum, a) => sum + (parseInt(a.periodsPerWeek) || 0), 0);
 
-      const utilization = (currentLoad / maxLoad) * 100;
-      const available = maxLoad - currentLoad;
+        const utilization = (currentLoad / maxLoad) * 100;
+        const available = maxLoad - currentLoad;
 
-      const teachesGrade = allocations.some(
-        (a) => a.teacherId === teacher.id && a.gradeId === gradeId,
-      );
+        // Exclude teachers who are already at or over their max load
+        if (available <= 0) return null;
 
-      let score = 0;
-      let status = "good";
+        // Check grade familiarity — exclude the current subject to avoid
+        // self-referential bonus when a second teacher is being added
+        const teachesGrade = allocations.some(
+          (a) =>
+            a.teacherId === teacher.id &&
+            a.gradeId === gradeId &&
+            a.subjectId !== subjectId,
+        );
 
-      if (utilization > 100) {
-        score -= 50;
-        status = "critical";
-      } else if (utilization > 90) {
-        score += 10;
-        status = "warning";
-      } else if (utilization > 75) {
-        score += 30;
-        status = "good";
-      } else {
-        score += 50;
-        status = "good";
-      }
+        // Determine status: warning only above 90%
+        let status = "good";
+        if (utilization > 90) {
+          status = "warning";
+        }
 
-      if (teachesGrade) score += 30;
+        // Base score: proportion of capacity remaining (0–100 scale).
+        // A teacher with 0% load scores 100; one at 80% load scores 20.
+        // This ensures the freest teacher always ranks highest by default.
+        let score = ((maxLoad - currentLoad) / maxLoad) * 100;
 
-      return {
-        ...teacher,
-        currentLoad,
-        maxLoad,
-        available,
-        teachesGrade,
-        status,
-        score,
-      };
-    });
+        // Penalise warning-zone teachers enough to rank below anyone healthy,
+        // but still above each other by their remaining capacity.
+        if (status === "warning") score -= 40;
+
+        // Small familiarity bonus — not large enough to override availability.
+        if (teachesGrade) score += 20;
+
+        return {
+          ...teacher,
+          currentLoad,
+          maxLoad,
+          available,
+          teachesGrade,
+          status,
+          score,
+        };
+      })
+      .filter(Boolean); // Remove null entries (fully loaded teachers)
 
     return scoredTeachers.sort((a, b) => b.score - a.score);
   };
@@ -238,7 +244,6 @@ const Allocations = () => {
       const { remaining } = getCellStatus(grade.id, subject.id);
       const periodsToAssign = parseInt(assignPeriods);
 
-      // Check if periods to assign is valid
       if (periodsToAssign <= 0) {
         alert("Periods must be greater than 0.");
         return;
@@ -253,11 +258,9 @@ const Allocations = () => {
       const teacher = teachers.find((t) => t.id === teacherId);
       if (!teacher) return;
 
-      // Calculate the teacher's current load
       const currentLoad = getTeacherLoad(teacherId);
       const maxLoad = parseInt(teacher.maxLoad) || 30;
 
-      // Check if assigning periods would exceed the teacher's max load
       if (currentLoad + periodsToAssign > maxLoad) {
         alert(
           `Cannot assign ${periodsToAssign} periods to ${teacher.name}. This would exceed their maximum load of ${maxLoad} periods.`,
@@ -375,7 +378,6 @@ const Allocations = () => {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-100 sticky top-0 z-20 shadow-sm">
             <tr>
-              {/* Class Column */}
               <th className="px-3 py-3 text-left text-sm font-bold text-gray-900 uppercase tracking-wider sticky left-0 bg-gray-100 z-30 min-w-[180px] border-r border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                 Class Stats
               </th>
@@ -454,7 +456,6 @@ const Allocations = () => {
                         <div className="flex flex-col gap-1 min-h-[40px]">
                           {/* 1. ASSIGNED TEACHERS */}
                           {cellAllocations.map((allocation) => {
-                            // Calculate Stats for Color
                             const { colorClass } = getTeacherStats(
                               allocation.teacherId,
                             );
@@ -580,7 +581,7 @@ const Allocations = () => {
                                                 className="mx-auto text-gray-300 mb-1"
                                               />
                                               <p className="text-xs font-medium text-gray-500 italic">
-                                                No qualified teachers found.
+                                                No qualified teachers available.
                                               </p>
                                             </div>
                                           );
@@ -615,24 +616,22 @@ const Allocations = () => {
 
                                             <div className="flex items-center justify-between text-xs">
                                               <div className="flex items-center gap-1.5">
-                                                {/* Load Indicator */}
                                                 <div className="flex items-center gap-1">
                                                   <div
-                                                    className={`w-1.5 h-1.5 rounded-full ${t.status === "critical" ? "bg-red-500" : t.status === "warning" ? "bg-orange-400" : "bg-green-500"}`}
+                                                    className={`w-1.5 h-1.5 rounded-full ${t.status === "warning" ? "bg-orange-400" : "bg-green-500"}`}
                                                   ></div>
                                                   <span
-                                                    className={`${t.status === "critical" ? "text-red-600 font-bold" : "text-gray-500"}`}
+                                                    className={`${t.status === "warning" ? "text-orange-600 font-bold" : "text-gray-500"}`}
                                                   >
                                                     {t.currentLoad}/{t.maxLoad}{" "}
                                                     load
                                                   </span>
                                                 </div>
                                               </div>
-                                              {/* Warning Icon if overloaded */}
-                                              {t.status === "critical" && (
+                                              {t.status === "warning" && (
                                                 <AlertTriangle
                                                   size={12}
-                                                  className="text-red-500"
+                                                  className="text-orange-500"
                                                 />
                                               )}
                                             </div>
@@ -657,7 +656,6 @@ const Allocations = () => {
                 </tr>
               );
             })}
-            \n{" "}
           </tbody>
         </table>
       </div>
@@ -669,7 +667,6 @@ const Allocations = () => {
         allocations={allocations}
       />
 
-      {/* NEW LOAD MATRIX MODAL */}
       <TeacherLoadMatrix
         isOpen={isMatrixOpen}
         onClose={() => setIsMatrixOpen(false)}

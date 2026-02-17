@@ -85,6 +85,10 @@ const AllocationLayout = () => {
                 }
                 items={[
                   { label: "Supply-Demand Gap", to: "analytics/supply-demand" },
+                  {
+                    label: "Smart Allocate",
+                    to: "analytics/smart-allocate",
+                  },
                 ]}
               />
 
