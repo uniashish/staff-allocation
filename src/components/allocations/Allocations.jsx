@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import TeacherDetailModal from "../teachers/TeacherDetailModal";
 import TeacherLoadMatrix from "./TeacherLoadMatrix";
-import AllocationChat from "./AllocationChat";
+import AllocationChat from "./chat";
 
 const Allocations = () => {
   const { school } = useOutletContext();
@@ -34,6 +34,7 @@ const Allocations = () => {
   const [subjects, setSubjects] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [allocations, setAllocations] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // UI State
@@ -48,32 +49,35 @@ const Allocations = () => {
   // 1. Fetch All Data
   const fetchData = async () => {
     try {
-      const [gradeSnap, subjSnap, teachSnap, allocSnap] = await Promise.all([
-        getDocs(
-          query(
-            collection(db, "schools", school.id, "grades"),
-            orderBy("name"),
+      const [gradeSnap, subjSnap, teachSnap, allocSnap, deptSnap] =
+        await Promise.all([
+          getDocs(
+            query(
+              collection(db, "schools", school.id, "grades"),
+              orderBy("name"),
+            ),
           ),
-        ),
-        getDocs(
-          query(
-            collection(db, "schools", school.id, "subjects"),
-            orderBy("name"),
+          getDocs(
+            query(
+              collection(db, "schools", school.id, "subjects"),
+              orderBy("name"),
+            ),
           ),
-        ),
-        getDocs(
-          query(
-            collection(db, "schools", school.id, "teachers"),
-            orderBy("name"),
+          getDocs(
+            query(
+              collection(db, "schools", school.id, "teachers"),
+              orderBy("name"),
+            ),
           ),
-        ),
-        getDocs(collection(db, "schools", school.id, "allocations")),
-      ]);
+          getDocs(collection(db, "schools", school.id, "allocations")),
+          getDocs(collection(db, "schools", school.id, "departments")),
+        ]);
 
       setGrades(gradeSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setSubjects(subjSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setTeachers(teachSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setAllocations(allocSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setDepartments(deptSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
     } catch (error) {
       console.error("Error fetching allocation data:", error);
     } finally {
@@ -102,7 +106,7 @@ const Allocations = () => {
 
     const utilization = (currentLoad / maxLoad) * 100;
 
-    let colorClass = "bg-indigo-50 border-indigo-200 text-indigo-900"; // Default
+    let colorClass = "bg-indigo-50 border-indigo-200 text-indigo-900";
 
     if (showHeatmap) {
       if (utilization > 90) {
@@ -172,7 +176,7 @@ const Allocations = () => {
     };
   };
 
-  // --- SMART SUGGEST LOGIC (FIXED) ---
+  // --- SMART SUGGEST LOGIC ---
   const getSmartSuggestions = (subjectId, gradeId, existingTeacherIds = []) => {
     const qualified = teachers.filter(
       (t) =>
@@ -186,7 +190,6 @@ const Allocations = () => {
     const scoredTeachers = qualified
       .map((teacher) => {
         const maxLoad = parseInt(teacher.maxLoad) || 30;
-
         const currentLoad = allocations
           .filter((a) => a.teacherId === teacher.id)
           .reduce((sum, a) => sum + (parseInt(a.periodsPerWeek) || 0), 0);
@@ -194,11 +197,8 @@ const Allocations = () => {
         const utilization = (currentLoad / maxLoad) * 100;
         const available = maxLoad - currentLoad;
 
-        // Exclude teachers who are already at or over their max load
         if (available <= 0) return null;
 
-        // Check grade familiarity — exclude the current subject to avoid
-        // self-referential bonus when a second teacher is being added
         const teachesGrade = allocations.some(
           (a) =>
             a.teacherId === teacher.id &&
@@ -206,22 +206,11 @@ const Allocations = () => {
             a.subjectId !== subjectId,
         );
 
-        // Determine status: warning only above 90%
         let status = "good";
-        if (utilization > 90) {
-          status = "warning";
-        }
+        if (utilization > 90) status = "warning";
 
-        // Base score: proportion of capacity remaining (0–100 scale).
-        // A teacher with 0% load scores 100; one at 80% load scores 20.
-        // This ensures the freest teacher always ranks highest by default.
         let score = ((maxLoad - currentLoad) / maxLoad) * 100;
-
-        // Penalise warning-zone teachers enough to rank below anyone healthy,
-        // but still above each other by their remaining capacity.
         if (status === "warning") score -= 40;
-
-        // Small familiarity bonus — not large enough to override availability.
         if (teachesGrade) score += 20;
 
         return {
@@ -234,7 +223,7 @@ const Allocations = () => {
           score,
         };
       })
-      .filter(Boolean); // Remove null entries (fully loaded teachers)
+      .filter(Boolean);
 
     return scoredTeachers.sort((a, b) => b.score - a.score);
   };
@@ -332,7 +321,6 @@ const Allocations = () => {
         </div>
 
         <div className="flex gap-2">
-          {/* HEATMAP TOGGLE */}
           <button
             onClick={() => setShowHeatmap(!showHeatmap)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-sm transition-all text-sm font-medium border ${
@@ -345,7 +333,6 @@ const Allocations = () => {
             {showHeatmap ? "Heatmap On" : "Heatmap Off"}
           </button>
 
-          {/* VIEW MATRIX BUTTON */}
           <button
             onClick={() => setIsMatrixOpen(true)}
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-sm transition-colors text-sm font-medium"
@@ -356,7 +343,7 @@ const Allocations = () => {
         </div>
       </div>
 
-      {/* Legend (Only visible when Heatmap is ON) */}
+      {/* Heatmap Legend */}
       {showHeatmap && (
         <div className="flex items-center gap-4 mb-3 text-xs px-1 animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="flex items-center gap-1.5">
@@ -404,7 +391,6 @@ const Allocations = () => {
                   key={grade.id}
                   className="hover:bg-slate-50 transition-colors"
                 >
-                  {/* Fixed Class Column */}
                   <td className="px-3 py-3 sticky left-0 bg-white z-10 border-r border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                     <div className="text-base font-bold text-gray-900">
                       {grade.name}
@@ -426,7 +412,6 @@ const Allocations = () => {
                     </div>
                   </td>
 
-                  {/* Subject Cells */}
                   {subjects.map((subject) => {
                     const isTaught =
                       subject.gradeIds && subject.gradeIds.includes(grade.id);
@@ -455,12 +440,10 @@ const Allocations = () => {
                         className="p-2 align-top relative border-r border-gray-200 last:border-0"
                       >
                         <div className="flex flex-col gap-1 min-h-[40px]">
-                          {/* 1. ASSIGNED TEACHERS */}
                           {cellAllocations.map((allocation) => {
                             const { colorClass } = getTeacherStats(
                               allocation.teacherId,
                             );
-
                             return (
                               <div
                                 key={allocation.id}
@@ -498,7 +481,6 @@ const Allocations = () => {
                             );
                           })}
 
-                          {/* 2. ADD BUTTON & DROPDOWN */}
                           {remaining > 0 ? (
                             <div className="relative mt-0.5">
                               {!isActive ? (
@@ -524,10 +506,8 @@ const Allocations = () => {
                                     : "Assign"}
                                 </button>
                               ) : (
-                                /* --- 3. SMART SUGGEST DROPDOWN --- */
                                 <div className="absolute top-0 left-0 w-[280px] z-50">
                                   <div className="bg-white border border-gray-300 shadow-xl rounded-lg p-0 text-left ring-1 ring-black ring-opacity-5 overflow-hidden">
-                                    {/* Dropdown Header */}
                                     <div className="bg-gray-50 px-3 py-2 border-b border-gray-200 flex justify-between items-center">
                                       <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
                                         Assign Teacher ({remaining} left)
@@ -540,7 +520,6 @@ const Allocations = () => {
                                       </button>
                                     </div>
 
-                                    {/* Period Input */}
                                     <div className="p-3 border-b border-gray-100 bg-white">
                                       <div className="flex items-center gap-2 bg-blue-50 p-1.5 rounded border border-blue-200">
                                         <Clock
@@ -563,7 +542,6 @@ const Allocations = () => {
                                       </div>
                                     </div>
 
-                                    {/* Smart Suggestions List */}
                                     <div className="max-h-60 overflow-y-auto">
                                       {(() => {
                                         const suggestions = getSmartSuggestions(
@@ -614,20 +592,17 @@ const Allocations = () => {
                                                 </span>
                                               )}
                                             </div>
-
                                             <div className="flex items-center justify-between text-xs">
-                                              <div className="flex items-center gap-1.5">
-                                                <div className="flex items-center gap-1">
-                                                  <div
-                                                    className={`w-1.5 h-1.5 rounded-full ${t.status === "warning" ? "bg-orange-400" : "bg-green-500"}`}
-                                                  ></div>
-                                                  <span
-                                                    className={`${t.status === "warning" ? "text-orange-600 font-bold" : "text-gray-500"}`}
-                                                  >
-                                                    {t.currentLoad}/{t.maxLoad}{" "}
-                                                    load
-                                                  </span>
-                                                </div>
+                                              <div className="flex items-center gap-1">
+                                                <div
+                                                  className={`w-1.5 h-1.5 rounded-full ${t.status === "warning" ? "bg-orange-400" : "bg-green-500"}`}
+                                                />
+                                                <span
+                                                  className={`${t.status === "warning" ? "text-orange-600 font-bold" : "text-gray-500"}`}
+                                                >
+                                                  {t.currentLoad}/{t.maxLoad}{" "}
+                                                  load
+                                                </span>
                                               </div>
                                               {t.status === "warning" && (
                                                 <AlertTriangle
@@ -641,11 +616,10 @@ const Allocations = () => {
                                       })()}
                                     </div>
                                   </div>
-                                  {/* Click Outside Handler */}
                                   <div
                                     className="fixed inset-0 z-[-1]"
                                     onClick={() => setActiveCell(null)}
-                                  ></div>
+                                  />
                                 </div>
                               )}
                             </div>
@@ -667,12 +641,6 @@ const Allocations = () => {
         teacher={viewingTeacher}
         allocations={allocations}
       />
-      <AllocationChat
-        grades={grades}
-        subjects={subjects}
-        teachers={teachers}
-        allocations={allocations}
-      />
 
       <TeacherLoadMatrix
         isOpen={isMatrixOpen}
@@ -680,6 +648,15 @@ const Allocations = () => {
         teachers={teachers}
         subjects={subjects}
         allocations={allocations}
+      />
+
+      {/* Allocation Assistant Chat */}
+      <AllocationChat
+        grades={grades}
+        subjects={subjects}
+        teachers={teachers}
+        allocations={allocations}
+        departments={departments}
       />
     </div>
   );

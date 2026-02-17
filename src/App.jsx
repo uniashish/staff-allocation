@@ -26,7 +26,7 @@ import Teachers from "./components/teachers/Teachers";
 import Allocations from "./components/allocations/Allocations";
 import SupplyDemand from "./components/analytics/SupplyDemand";
 import SmartAllocation from "./components/analytics/SmartAllocation"; // <--- NEW COMPONENT FOR SMART ALLOCATE
-
+import WhatIfAnalysis from "./components/analytics/WhatIfAnalysis";
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
   const { currentUser, isPending, loading } = useAuth();
@@ -97,6 +97,7 @@ function App() {
                 path="analytics/smart-allocate"
                 element={<SmartAllocation />}
               />
+              <Route path="analytics/what-if" element={<WhatIfAnalysis />} />
             </Route>
 
             {/* Default Redirect */}

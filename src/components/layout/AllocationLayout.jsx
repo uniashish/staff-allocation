@@ -9,7 +9,8 @@ import {
 } from "react-router-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebase/firebaseUtils";
-import { BarChart3, ChevronDown } from "lucide-react";
+import { BarChart3, ChevronDown, Lightbulb } from "lucide-react";
+//import { Lightbulb } from "lucide-react"; // or any icon you prefer
 
 const AllocationLayout = () => {
   const { schoolId } = useParams();
@@ -88,6 +89,10 @@ const AllocationLayout = () => {
                   {
                     label: "Smart Allocate",
                     to: "analytics/smart-allocate",
+                  },
+                  {
+                    label: "What-If Analysis",
+                    to: "analytics/what-if",
                   },
                 ]}
               />
