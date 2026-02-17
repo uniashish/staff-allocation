@@ -119,6 +119,12 @@ const Allocations = () => {
     return { colorClass, load: currentLoad, max: maxLoad };
   };
 
+  const getTeacherLoad = (teacherId) => {
+    return allocations
+      .filter((a) => a.teacherId === teacherId)
+      .reduce((sum, a) => sum + (parseInt(a.periodsPerWeek) || 0), 0);
+  };
+
   // Helper: Get cell constraints and current status
   const getCellStatus = (gradeId, subjectId) => {
     const subject = subjects.find((s) => s.id === subjectId);
@@ -232,6 +238,7 @@ const Allocations = () => {
       const { remaining } = getCellStatus(grade.id, subject.id);
       const periodsToAssign = parseInt(assignPeriods);
 
+      // Check if periods to assign is valid
       if (periodsToAssign <= 0) {
         alert("Periods must be greater than 0.");
         return;
@@ -245,6 +252,18 @@ const Allocations = () => {
 
       const teacher = teachers.find((t) => t.id === teacherId);
       if (!teacher) return;
+
+      // Calculate the teacher's current load
+      const currentLoad = getTeacherLoad(teacherId);
+      const maxLoad = parseInt(teacher.maxLoad) || 30;
+
+      // Check if assigning periods would exceed the teacher's max load
+      if (currentLoad + periodsToAssign > maxLoad) {
+        alert(
+          `Cannot assign ${periodsToAssign} periods to ${teacher.name}. This would exceed their maximum load of ${maxLoad} periods.`,
+        );
+        return;
+      }
 
       const allocationId = `${grade.id}_${subject.id}_${teacher.id}`;
       const docRef = doc(db, "schools", school.id, "allocations", allocationId);
