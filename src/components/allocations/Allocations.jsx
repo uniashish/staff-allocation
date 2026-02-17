@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import TeacherDetailModal from "../teachers/TeacherDetailModal";
 import TeacherLoadMatrix from "./TeacherLoadMatrix";
+import AllocationChat from "./AllocationChat";
 
 const Allocations = () => {
   const { school } = useOutletContext();
@@ -664,6 +665,12 @@ const Allocations = () => {
         isOpen={!!viewingTeacher}
         onClose={() => setViewingTeacher(null)}
         teacher={viewingTeacher}
+        allocations={allocations}
+      />
+      <AllocationChat
+        grades={grades}
+        subjects={subjects}
+        teachers={teachers}
         allocations={allocations}
       />
 
