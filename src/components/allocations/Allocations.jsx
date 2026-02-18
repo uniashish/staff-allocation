@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useOutletContext } from "react-router-dom";
 import {
   collection,
@@ -45,9 +45,27 @@ const Allocations = () => {
   const [viewingTeacher, setViewingTeacher] = useState(null);
   const [isMatrixOpen, setIsMatrixOpen] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(100); // NEW: Zoom level state
+  const [zoomLevel, setZoomLevel] = useState(100);
+
+  // Refs for auto-scroll
+  const scrollContainerRef = useRef(null);
+  const scrollIntervalRef = useRef(null);
+  const [scrollLeft, setScrollLeft] = useState(0);
 
   const canEdit = currentUser?.role === "super_admin";
+
+  // Track scroll position for sticky column
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      setScrollLeft(container.scrollLeft);
+    };
+
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // 1. Fetch All Data
   const fetchData = async () => {
@@ -91,6 +109,64 @@ const Allocations = () => {
   useEffect(() => {
     if (school?.id) fetchData();
   }, [school?.id]);
+
+  // Auto-scroll effect - accounts for zoom level
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleMouseMove = (e) => {
+      const rect = container.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const threshold = 80; // Distance from edge to trigger scroll
+      const baseScrollSpeed = 10; // Base pixels to scroll per interval
+      // Adjust scroll speed based on zoom level
+      const scrollSpeed = baseScrollSpeed * (zoomLevel / 100);
+
+      // Clear any existing interval
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+        scrollIntervalRef.current = null;
+      }
+
+      // Check if mouse is near right edge
+      if (mouseX > rect.width - threshold) {
+        scrollIntervalRef.current = setInterval(() => {
+          if (container) {
+            container.scrollLeft += scrollSpeed;
+          }
+        }, 16); // ~60fps
+      }
+      // Check if mouse is near left edge (accounting for sticky column width)
+      else if (mouseX < threshold + 180 && container.scrollLeft > 0) {
+        scrollIntervalRef.current = setInterval(() => {
+          if (container) {
+            container.scrollLeft -= scrollSpeed;
+          }
+        }, 16);
+      }
+    };
+
+    const handleMouseLeave = () => {
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+        scrollIntervalRef.current = null;
+      }
+    };
+
+    container.addEventListener("mousemove", handleMouseMove);
+    container.addEventListener("mouseleave", handleMouseLeave);
+
+    return () => {
+      if (container) {
+        container.removeEventListener("mousemove", handleMouseMove);
+        container.removeEventListener("mouseleave", handleMouseLeave);
+      }
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+      }
+    };
+  }, [zoomLevel]); // Re-run when zoom level changes
 
   // Helper: Get Teacher Stats for Heatmap
   const getTeacherStats = (teacherId) => {
@@ -344,7 +420,7 @@ const Allocations = () => {
             View Loads
           </button>
 
-          {/* NEW: ZOOM CONTROLS */}
+          {/* ZOOM CONTROLS */}
           <div className="flex items-center gap-0 border border-gray-300 rounded-lg overflow-hidden bg-white shadow-sm">
             <button
               onClick={() => setZoomLevel((prev) => Math.max(50, prev - 10))}
@@ -387,21 +463,30 @@ const Allocations = () => {
         </div>
       )}
 
-      {/* MATRIX TABLE WITH ZOOM WRAPPER */}
-      <div className="flex-1 bg-white border border-gray-200 rounded-xl overflow-auto shadow-sm relative w-full h-[70vh] min-h-[70vh]">
+      {/* MATRIX TABLE WITH AUTO-SCROLL AND FIXED ZOOM */}
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 bg-white border border-gray-200 rounded-xl overflow-auto shadow-sm relative w-full h-[70vh] min-h-[70vh]"
+      >
         <div
           style={{
             transform: `scale(${zoomLevel / 100})`,
             transformOrigin: "top left",
-            width: `${10000 / zoomLevel}%`,
-            height: `${10000 / zoomLevel}%`,
-            transition: "transform 0.2s ease-out",
+            width: `${100 / (zoomLevel / 100)}%`,
+            height: `${100 / (zoomLevel / 100)}%`,
           }}
         >
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-100 sticky top-0 z-20 shadow-sm">
               <tr>
-                <th className="px-3 py-3 text-left text-sm font-bold text-gray-900 uppercase tracking-wider sticky left-0 bg-gray-100 z-30 min-w-[180px] border-r border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                <th
+                  className="px-3 py-3 text-left text-sm font-bold text-gray-900 uppercase tracking-wider bg-gray-100 min-w-[180px] border-r border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"
+                  style={{
+                    position: "sticky",
+                    left: `${scrollLeft / (zoomLevel / 100)}px`,
+                    zIndex: 30,
+                  }}
+                >
                   Class Stats
                 </th>
                 {subjects.map((subject) => (
@@ -426,7 +511,14 @@ const Allocations = () => {
                     key={grade.id}
                     className="hover:bg-slate-50 transition-colors"
                   >
-                    <td className="px-3 py-3 sticky left-0 bg-white z-10 border-r border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                    <td
+                      className="px-3 py-3 bg-white border-r border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]"
+                      style={{
+                        position: "sticky",
+                        left: `${scrollLeft / (zoomLevel / 100)}px`,
+                        zIndex: 10,
+                      }}
+                    >
                       <div className="text-base font-bold text-gray-900">
                         {grade.name}
                       </div>
@@ -529,11 +621,11 @@ const Allocations = () => {
                                     }
                                     disabled={!canEdit}
                                     className={`w-full py-1 border border-dashed rounded text-xs font-medium flex items-center justify-center gap-1 transition-all
-                                    ${
-                                      cellAllocations.length > 0
-                                        ? "border-green-400 text-green-700 bg-green-50 hover:bg-green-100"
-                                        : "border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50"
-                                    } disabled:opacity-50`}
+                                  ${
+                                    cellAllocations.length > 0
+                                      ? "border-green-400 text-green-700 bg-green-50 hover:bg-green-100"
+                                      : "border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50"
+                                  } disabled:opacity-50`}
                                   >
                                     <Plus size={12} />
                                     {cellAllocations.length > 0

@@ -1,16 +1,22 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { BarChart3 } from "lucide-react"; // Import Icon
+import { BarChart3 } from "lucide-react";
+import { useAuth } from "../../context/AuthContext"; // 1. Import Auth Hook
 
 export const SchoolCard = ({
   school,
-  userRole,
+  userRole, // This might be coming in as undefined
   onDelete,
   onEdit,
   onViewDetail,
 }) => {
-  const isViewer = userRole === "viewer";
+  const { currentUser } = useAuth(); // 2. Get current user directly
   const navigate = useNavigate();
+
+  // 3. Robust Check: Use prop OR fallback to currentUser.role
+  // We also check for 'admin' just in case your database uses that instead of 'super_admin'
+  const effectiveRole = userRole || currentUser?.role;
+  const isSuperAdmin = effectiveRole === "super_admin";
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow flex flex-col h-full group">
@@ -25,7 +31,6 @@ export const SchoolCard = ({
       </div>
 
       <div className="flex gap-2 mt-4 pt-4 border-t border-gray-50">
-        {/* ACTION: Navigate to the new Allocation Dashboard */}
         <button
           onClick={() => navigate(`/school/${school.id}`)}
           className="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition-all shadow-sm"
@@ -33,7 +38,6 @@ export const SchoolCard = ({
           Open Dashboard
         </button>
 
-        {/* NEW DETAIL BUTTON */}
         <button
           onClick={() => onViewDetail(school)}
           className="px-3 py-2 text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 rounded-lg transition-colors flex items-center justify-center"
@@ -42,7 +46,8 @@ export const SchoolCard = ({
           <BarChart3 size={20} />
         </button>
 
-        {!isViewer && (
+        {/* CHANGED: Logic now uses the robust 'isSuperAdmin' check */}
+        {isSuperAdmin && (
           <>
             <button
               className="p-2 text-gray-400 hover:text-blue-600 border border-gray-200 rounded-lg transition-colors hover:bg-gray-50"
