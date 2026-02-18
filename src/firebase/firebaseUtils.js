@@ -9,7 +9,7 @@ import {
   addDoc,
   getDocs,
   deleteDoc,
-  updateDoc, // <--- THIS WAS MISSING
+  updateDoc,
 } from "firebase/firestore";
 
 // Using Vite's environment variables for security

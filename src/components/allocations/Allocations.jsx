@@ -20,6 +20,8 @@ import {
   Star,
   AlertTriangle,
   Layers,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import TeacherDetailModal from "../teachers/TeacherDetailModal";
 import TeacherLoadMatrix from "./TeacherLoadMatrix";
@@ -43,6 +45,7 @@ const Allocations = () => {
   const [viewingTeacher, setViewingTeacher] = useState(null);
   const [isMatrixOpen, setIsMatrixOpen] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(100); // NEW: Zoom level state
 
   const canEdit = currentUser?.role === "super_admin";
 
@@ -320,7 +323,7 @@ const Allocations = () => {
           <p className="text-sm text-gray-600">Assign teachers to subjects.</p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setShowHeatmap(!showHeatmap)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-sm transition-all text-sm font-medium border ${
@@ -340,6 +343,29 @@ const Allocations = () => {
             <BarChart3 size={18} />
             View Loads
           </button>
+
+          {/* NEW: ZOOM CONTROLS */}
+          <div className="flex items-center gap-0 border border-gray-300 rounded-lg overflow-hidden bg-white shadow-sm">
+            <button
+              onClick={() => setZoomLevel((prev) => Math.max(50, prev - 10))}
+              disabled={zoomLevel <= 50}
+              className="px-3 py-2 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors border-r border-gray-200"
+              title="Zoom Out"
+            >
+              <ZoomOut size={16} className="text-gray-600" />
+            </button>
+            <span className="px-3 text-sm font-mono text-gray-700 font-medium min-w-[60px] text-center bg-gray-50">
+              {zoomLevel}%
+            </span>
+            <button
+              onClick={() => setZoomLevel((prev) => Math.min(150, prev + 10))}
+              disabled={zoomLevel >= 150}
+              className="px-3 py-2 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors border-l border-gray-200"
+              title="Zoom In"
+            >
+              <ZoomIn size={16} className="text-gray-600" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -361,278 +387,290 @@ const Allocations = () => {
         </div>
       )}
 
-      {/* MATRIX TABLE */}
+      {/* MATRIX TABLE WITH ZOOM WRAPPER */}
       <div className="flex-1 bg-white border border-gray-200 rounded-xl overflow-auto shadow-sm relative w-full h-[70vh] min-h-[70vh]">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-100 sticky top-0 z-20 shadow-sm">
-            <tr>
-              <th className="px-3 py-3 text-left text-sm font-bold text-gray-900 uppercase tracking-wider sticky left-0 bg-gray-100 z-30 min-w-[180px] border-r border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                Class Stats
-              </th>
-              {subjects.map((subject) => (
-                <th
-                  key={subject.id}
-                  className="px-2 py-3 text-center text-sm font-bold text-gray-900 uppercase tracking-wider min-w-[180px] border-r border-gray-200 last:border-0"
-                  title={subject.name}
-                >
-                  <div className="px-1">{subject.name}</div>
-                  <div className="text-[10px] font-semibold text-gray-600 normal-case truncate">
-                    {subject.departmentName?.substring(0, 18)}
-                  </div>
+        <div
+          style={{
+            transform: `scale(${zoomLevel / 100})`,
+            transformOrigin: "top left",
+            width: `${10000 / zoomLevel}%`,
+            height: `${10000 / zoomLevel}%`,
+            transition: "transform 0.2s ease-out",
+          }}
+        >
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-100 sticky top-0 z-20 shadow-sm">
+              <tr>
+                <th className="px-3 py-3 text-left text-sm font-bold text-gray-900 uppercase tracking-wider sticky left-0 bg-gray-100 z-30 min-w-[180px] border-r border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                  Class Stats
                 </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {grades.map((grade) => {
-              const stats = getGradeStats(grade.id);
-              return (
-                <tr
-                  key={grade.id}
-                  className="hover:bg-slate-50 transition-colors"
-                >
-                  <td className="px-3 py-3 sticky left-0 bg-white z-10 border-r border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                    <div className="text-base font-bold text-gray-900">
-                      {grade.name}
+                {subjects.map((subject) => (
+                  <th
+                    key={subject.id}
+                    className="px-2 py-3 text-center text-sm font-bold text-gray-900 uppercase tracking-wider min-w-[180px] border-r border-gray-200 last:border-0"
+                    title={subject.name}
+                  >
+                    <div className="px-1">{subject.name}</div>
+                    <div className="text-[10px] font-semibold text-gray-600 normal-case truncate">
+                      {subject.departmentName?.substring(0, 18)}
                     </div>
-                    <div className="mt-1 space-y-0.5">
-                      <div className="text-xs font-medium text-gray-700">
-                        Allocated:{" "}
-                        <span className="text-green-700 font-bold">
-                          {stats.totalAllocated}
-                        </span>{" "}
-                        / {stats.totalRequired}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {grades.map((grade) => {
+                const stats = getGradeStats(grade.id);
+                return (
+                  <tr
+                    key={grade.id}
+                    className="hover:bg-slate-50 transition-colors"
+                  >
+                    <td className="px-3 py-3 sticky left-0 bg-white z-10 border-r border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                      <div className="text-base font-bold text-gray-900">
+                        {grade.name}
                       </div>
-                      <div className="text-xs font-medium text-gray-700">
-                        Unallocated:{" "}
-                        <span className="text-red-600 font-bold">
-                          {stats.unallocated}
-                        </span>
+                      <div className="mt-1 space-y-0.5">
+                        <div className="text-xs font-medium text-gray-700">
+                          Allocated:{" "}
+                          <span className="text-green-700 font-bold">
+                            {stats.totalAllocated}
+                          </span>{" "}
+                          / {stats.totalRequired}
+                        </div>
+                        <div className="text-xs font-medium text-gray-700">
+                          Unallocated:{" "}
+                          <span className="text-red-600 font-bold">
+                            {stats.unallocated}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </td>
+                    </td>
 
-                  {subjects.map((subject) => {
-                    const isTaught =
-                      subject.gradeIds && subject.gradeIds.includes(grade.id);
-                    const { remaining, cellAllocations } = getCellStatus(
-                      grade.id,
-                      subject.id,
-                    );
-                    const isActive =
-                      activeCell?.gradeId === grade.id &&
-                      activeCell?.subjectId === subject.id;
+                    {subjects.map((subject) => {
+                      const isTaught =
+                        subject.gradeIds && subject.gradeIds.includes(grade.id);
+                      const { remaining, cellAllocations } = getCellStatus(
+                        grade.id,
+                        subject.id,
+                      );
+                      const isActive =
+                        activeCell?.gradeId === grade.id &&
+                        activeCell?.subjectId === subject.id;
 
-                    if (!isTaught) {
+                      if (!isTaught) {
+                        return (
+                          <td
+                            key={subject.id}
+                            className="bg-gray-50 border-r border-gray-100 p-2 text-center last:border-0"
+                          >
+                            <span className="text-gray-300 text-xs">-</span>
+                          </td>
+                        );
+                      }
+
                       return (
                         <td
                           key={subject.id}
-                          className="bg-gray-50 border-r border-gray-100 p-2 text-center last:border-0"
+                          className="p-2 align-top relative border-r border-gray-200 last:border-0"
                         >
-                          <span className="text-gray-300 text-xs">-</span>
-                        </td>
-                      );
-                    }
-
-                    return (
-                      <td
-                        key={subject.id}
-                        className="p-2 align-top relative border-r border-gray-200 last:border-0"
-                      >
-                        <div className="flex flex-col gap-1 min-h-[40px]">
-                          {cellAllocations.map((allocation) => {
-                            const { colorClass } = getTeacherStats(
-                              allocation.teacherId,
-                            );
-                            return (
-                              <div
-                                key={allocation.id}
-                                className={`flex items-center justify-between gap-1 border rounded px-2 py-1 group transition-colors duration-300 ${colorClass}`}
-                              >
-                                <div className="overflow-hidden w-full">
-                                  <button
-                                    onClick={() => {
-                                      const t = teachers.find(
-                                        (tea) =>
-                                          tea.id === allocation.teacherId,
-                                      );
-                                      if (t) setViewingTeacher(t);
-                                    }}
-                                    className="text-xs font-bold hover:underline truncate w-full text-left focus:outline-none block leading-tight"
-                                    title={`${allocation.teacherName} (${allocation.periodsPerWeek} p/w)`}
-                                  >
-                                    {allocation.teacherName}
-                                  </button>
+                          <div className="flex flex-col gap-1 min-h-[40px]">
+                            {cellAllocations.map((allocation) => {
+                              const { colorClass } = getTeacherStats(
+                                allocation.teacherId,
+                              );
+                              return (
+                                <div
+                                  key={allocation.id}
+                                  className={`flex items-center justify-between gap-1 border rounded px-2 py-1 group transition-colors duration-300 ${colorClass}`}
+                                >
+                                  <div className="overflow-hidden w-full">
+                                    <button
+                                      onClick={() => {
+                                        const t = teachers.find(
+                                          (tea) =>
+                                            tea.id === allocation.teacherId,
+                                        );
+                                        if (t) setViewingTeacher(t);
+                                      }}
+                                      className="text-xs font-bold hover:underline truncate w-full text-left focus:outline-none block leading-tight"
+                                      title={`${allocation.teacherName} (${allocation.periodsPerWeek} p/w)`}
+                                    >
+                                      {allocation.teacherName}
+                                    </button>
+                                  </div>
+                                  <span className="text-xs font-mono font-bold shrink-0 opacity-80">
+                                    {allocation.periodsPerWeek}
+                                  </span>
+                                  {canEdit && (
+                                    <button
+                                      onClick={() =>
+                                        handleRemoveAllocation(allocation.id)
+                                      }
+                                      className="hover:text-red-600 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-0.5"
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  )}
                                 </div>
-                                <span className="text-xs font-mono font-bold shrink-0 opacity-80">
-                                  {allocation.periodsPerWeek}
-                                </span>
-                                {canEdit && (
+                              );
+                            })}
+
+                            {remaining > 0 ? (
+                              <div className="relative mt-0.5">
+                                {!isActive ? (
                                   <button
                                     onClick={() =>
-                                      handleRemoveAllocation(allocation.id)
+                                      openAssignmentDropdown(
+                                        grade.id,
+                                        subject.id,
+                                        remaining,
+                                      )
                                     }
-                                    className="hover:text-red-600 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-0.5"
+                                    disabled={!canEdit}
+                                    className={`w-full py-1 border border-dashed rounded text-xs font-medium flex items-center justify-center gap-1 transition-all
+                                    ${
+                                      cellAllocations.length > 0
+                                        ? "border-green-400 text-green-700 bg-green-50 hover:bg-green-100"
+                                        : "border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50"
+                                    } disabled:opacity-50`}
                                   >
-                                    <X size={12} />
+                                    <Plus size={12} />
+                                    {cellAllocations.length > 0
+                                      ? remaining
+                                      : "Assign"}
                                   </button>
-                                )}
-                              </div>
-                            );
-                          })}
-
-                          {remaining > 0 ? (
-                            <div className="relative mt-0.5">
-                              {!isActive ? (
-                                <button
-                                  onClick={() =>
-                                    openAssignmentDropdown(
-                                      grade.id,
-                                      subject.id,
-                                      remaining,
-                                    )
-                                  }
-                                  disabled={!canEdit}
-                                  className={`w-full py-1 border border-dashed rounded text-xs font-medium flex items-center justify-center gap-1 transition-all
-                                  ${
-                                    cellAllocations.length > 0
-                                      ? "border-green-400 text-green-700 bg-green-50 hover:bg-green-100"
-                                      : "border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50"
-                                  } disabled:opacity-50`}
-                                >
-                                  <Plus size={12} />
-                                  {cellAllocations.length > 0
-                                    ? remaining
-                                    : "Assign"}
-                                </button>
-                              ) : (
-                                <div className="absolute top-0 left-0 w-[280px] z-50">
-                                  <div className="bg-white border border-gray-300 shadow-xl rounded-lg p-0 text-left ring-1 ring-black ring-opacity-5 overflow-hidden">
-                                    <div className="bg-gray-50 px-3 py-2 border-b border-gray-200 flex justify-between items-center">
-                                      <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                                        Assign Teacher ({remaining} left)
-                                      </span>
-                                      <button
-                                        onClick={() => setActiveCell(null)}
-                                        className="text-gray-400 hover:text-gray-600"
-                                      >
-                                        <X size={14} />
-                                      </button>
-                                    </div>
-
-                                    <div className="p-3 border-b border-gray-100 bg-white">
-                                      <div className="flex items-center gap-2 bg-blue-50 p-1.5 rounded border border-blue-200">
-                                        <Clock
-                                          size={14}
-                                          className="text-blue-600"
-                                        />
-                                        <span className="text-xs text-blue-900 font-bold whitespace-nowrap">
-                                          Periods:
+                                ) : (
+                                  <div className="absolute top-0 left-0 w-[280px] z-50">
+                                    <div className="bg-white border border-gray-300 shadow-xl rounded-lg p-0 text-left ring-1 ring-black ring-opacity-5 overflow-hidden">
+                                      <div className="bg-gray-50 px-3 py-2 border-b border-gray-200 flex justify-between items-center">
+                                        <span className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                          Assign Teacher ({remaining} left)
                                         </span>
-                                        <input
-                                          type="number"
-                                          min="1"
-                                          max={remaining}
-                                          value={assignPeriods}
-                                          onChange={(e) =>
-                                            setAssignPeriods(e.target.value)
+                                        <button
+                                          onClick={() => setActiveCell(null)}
+                                          className="text-gray-400 hover:text-gray-600"
+                                        >
+                                          <X size={14} />
+                                        </button>
+                                      </div>
+
+                                      <div className="p-3 border-b border-gray-100 bg-white">
+                                        <div className="flex items-center gap-2 bg-blue-50 p-1.5 rounded border border-blue-200">
+                                          <Clock
+                                            size={14}
+                                            className="text-blue-600"
+                                          />
+                                          <span className="text-xs text-blue-900 font-bold whitespace-nowrap">
+                                            Periods:
+                                          </span>
+                                          <input
+                                            type="number"
+                                            min="1"
+                                            max={remaining}
+                                            value={assignPeriods}
+                                            onChange={(e) =>
+                                              setAssignPeriods(e.target.value)
+                                            }
+                                            className="w-12 h-6 text-xs font-bold text-center border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-black"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div className="max-h-60 overflow-y-auto">
+                                        {(() => {
+                                          const suggestions =
+                                            getSmartSuggestions(
+                                              subject.id,
+                                              grade.id,
+                                              cellAllocations.map(
+                                                (a) => a.teacherId,
+                                              ),
+                                            );
+
+                                          if (suggestions.length === 0) {
+                                            return (
+                                              <div className="px-4 py-6 text-center">
+                                                <AlertCircle
+                                                  size={20}
+                                                  className="mx-auto text-gray-300 mb-1"
+                                                />
+                                                <p className="text-xs font-medium text-gray-500 italic">
+                                                  No qualified teachers
+                                                  available.
+                                                </p>
+                                              </div>
+                                            );
                                           }
-                                          className="w-12 h-6 text-xs font-bold text-center border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 outline-none text-black"
-                                        />
+
+                                          return suggestions.map((t) => (
+                                            <button
+                                              key={t.id}
+                                              onClick={() =>
+                                                handleAllocate(
+                                                  grade,
+                                                  subject,
+                                                  t.id,
+                                                )
+                                              }
+                                              className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0 group"
+                                            >
+                                              <div className="flex justify-between items-center mb-0.5">
+                                                <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-700">
+                                                  {t.name}
+                                                </span>
+                                                {t.teachesGrade && (
+                                                  <span className="text-[10px] bg-green-100 text-green-700 px-1.5 rounded font-medium flex items-center gap-0.5">
+                                                    <Star
+                                                      size={8}
+                                                      fill="currentColor"
+                                                    />{" "}
+                                                    Match
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <div className="flex items-center justify-between text-xs">
+                                                <div className="flex items-center gap-1">
+                                                  <div
+                                                    className={`w-1.5 h-1.5 rounded-full ${t.status === "warning" ? "bg-orange-400" : "bg-green-500"}`}
+                                                  />
+                                                  <span
+                                                    className={`${t.status === "warning" ? "text-orange-600 font-bold" : "text-gray-500"}`}
+                                                  >
+                                                    {t.currentLoad}/{t.maxLoad}{" "}
+                                                    load
+                                                  </span>
+                                                </div>
+                                                {t.status === "warning" && (
+                                                  <AlertTriangle
+                                                    size={12}
+                                                    className="text-orange-500"
+                                                  />
+                                                )}
+                                              </div>
+                                            </button>
+                                          ));
+                                        })()}
                                       </div>
                                     </div>
-
-                                    <div className="max-h-60 overflow-y-auto">
-                                      {(() => {
-                                        const suggestions = getSmartSuggestions(
-                                          subject.id,
-                                          grade.id,
-                                          cellAllocations.map(
-                                            (a) => a.teacherId,
-                                          ),
-                                        );
-
-                                        if (suggestions.length === 0) {
-                                          return (
-                                            <div className="px-4 py-6 text-center">
-                                              <AlertCircle
-                                                size={20}
-                                                className="mx-auto text-gray-300 mb-1"
-                                              />
-                                              <p className="text-xs font-medium text-gray-500 italic">
-                                                No qualified teachers available.
-                                              </p>
-                                            </div>
-                                          );
-                                        }
-
-                                        return suggestions.map((t) => (
-                                          <button
-                                            key={t.id}
-                                            onClick={() =>
-                                              handleAllocate(
-                                                grade,
-                                                subject,
-                                                t.id,
-                                              )
-                                            }
-                                            className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0 group"
-                                          >
-                                            <div className="flex justify-between items-center mb-0.5">
-                                              <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-700">
-                                                {t.name}
-                                              </span>
-                                              {t.teachesGrade && (
-                                                <span className="text-[10px] bg-green-100 text-green-700 px-1.5 rounded font-medium flex items-center gap-0.5">
-                                                  <Star
-                                                    size={8}
-                                                    fill="currentColor"
-                                                  />{" "}
-                                                  Match
-                                                </span>
-                                              )}
-                                            </div>
-                                            <div className="flex items-center justify-between text-xs">
-                                              <div className="flex items-center gap-1">
-                                                <div
-                                                  className={`w-1.5 h-1.5 rounded-full ${t.status === "warning" ? "bg-orange-400" : "bg-green-500"}`}
-                                                />
-                                                <span
-                                                  className={`${t.status === "warning" ? "text-orange-600 font-bold" : "text-gray-500"}`}
-                                                >
-                                                  {t.currentLoad}/{t.maxLoad}{" "}
-                                                  load
-                                                </span>
-                                              </div>
-                                              {t.status === "warning" && (
-                                                <AlertTriangle
-                                                  size={12}
-                                                  className="text-orange-500"
-                                                />
-                                              )}
-                                            </div>
-                                          </button>
-                                        ));
-                                      })()}
-                                    </div>
+                                    <div
+                                      className="fixed inset-0 z-[-1]"
+                                      onClick={() => setActiveCell(null)}
+                                    />
                                   </div>
-                                  <div
-                                    className="fixed inset-0 z-[-1]"
-                                    onClick={() => setActiveCell(null)}
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          ) : null}
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                                )}
+                              </div>
+                            ) : null}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <TeacherDetailModal
