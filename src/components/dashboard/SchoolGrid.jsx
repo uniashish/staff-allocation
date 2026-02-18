@@ -1,13 +1,13 @@
 import React from "react";
 import { SchoolCard } from "./SchoolCard";
 
-// 1. Accept 'onEdit' in the props
 export const SchoolGrid = ({
   schools,
   loading,
   userRole,
   onRequestDelete,
   onEdit,
+  onViewDetail, // NEW PROP
 }) => {
   const isViewer = userRole === "viewer";
 
@@ -41,7 +41,8 @@ export const SchoolGrid = ({
           school={school}
           userRole={userRole}
           onDelete={onRequestDelete}
-          onEdit={onEdit} // 2. Pass 'onEdit' down to the card
+          onEdit={onEdit}
+          onViewDetail={onViewDetail} // PASS DOWN
         />
       ))}
     </div>

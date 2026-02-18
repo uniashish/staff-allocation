@@ -1,32 +1,51 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { BarChart3 } from "lucide-react"; // Import Icon
 
-export const SchoolCard = ({ school, userRole, onDelete, onEdit }) => {
+export const SchoolCard = ({
+  school,
+  userRole,
+  onDelete,
+  onEdit,
+  onViewDetail,
+}) => {
   const isViewer = userRole === "viewer";
   const navigate = useNavigate();
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow flex flex-col h-full">
+    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow flex flex-col h-full group">
       <div className="flex-grow">
-        <h2 className="text-xl font-bold text-slate-900 mb-2">{school.name}</h2>
-        <p className="text-gray-500 text-sm mb-6">
+        <h2 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-indigo-600 transition-colors">
+          {school.name}
+        </h2>
+        <p className="text-gray-500 text-sm mb-6 flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
           {school.location || "No location specified"}
         </p>
       </div>
 
-      <div className="flex gap-2 mt-4">
+      <div className="flex gap-2 mt-4 pt-4 border-t border-gray-50">
         {/* ACTION: Navigate to the new Allocation Dashboard */}
         <button
           onClick={() => navigate(`/school/${school.id}`)}
-          className="flex-1 bg-brand-teal text-white py-2 rounded-md text-sm font-semibold hover:opacity-90 transition-opacity"
+          className="flex-1 bg-indigo-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition-all shadow-sm"
         >
-          Open Allocation
+          Open Dashboard
+        </button>
+
+        {/* NEW DETAIL BUTTON */}
+        <button
+          onClick={() => onViewDetail(school)}
+          className="px-3 py-2 text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 rounded-lg transition-colors flex items-center justify-center"
+          title="View Statistics"
+        >
+          <BarChart3 size={20} />
         </button>
 
         {!isViewer && (
           <>
             <button
-              className="p-2 text-gray-400 hover:text-brand-teal border border-gray-200 rounded-md transition-colors"
+              className="p-2 text-gray-400 hover:text-blue-600 border border-gray-200 rounded-lg transition-colors hover:bg-gray-50"
               title="Edit School"
               onClick={() => onEdit(school)}
             >
@@ -47,7 +66,7 @@ export const SchoolCard = ({ school, userRole, onDelete, onEdit }) => {
 
             <button
               onClick={() => onDelete(school.id)}
-              className="p-2 text-gray-400 hover:text-brand-red border border-gray-200 rounded-md transition-colors"
+              className="p-2 text-gray-400 hover:text-red-600 border border-gray-200 rounded-lg transition-colors hover:bg-red-50"
               title="Delete School"
             >
               <svg
