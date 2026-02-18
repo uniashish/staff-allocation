@@ -125,7 +125,7 @@ const Dashboard = () => {
         <div className="relative z-10">
           <h1 className="text-3xl font-bold mb-2">Welcome to Your Dashboard</h1>
           <p className="text-teal-100 text-lg max-w-2xl">
-            Manage your schools, departments, and staff allocations efficiently.
+            Manage your Schools, Departments, and Staff allocations.
           </p>
         </div>
         <div className="absolute right-0 bottom-0 opacity-10 transform translate-x-10 translate-y-10">
