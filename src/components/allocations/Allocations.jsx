@@ -50,22 +50,8 @@ const Allocations = () => {
   // Refs for auto-scroll
   const scrollContainerRef = useRef(null);
   const scrollIntervalRef = useRef(null);
-  const [scrollLeft, setScrollLeft] = useState(0);
 
   const canEdit = currentUser?.role === "super_admin";
-
-  // Track scroll position for sticky column
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const handleScroll = () => {
-      setScrollLeft(container.scrollLeft);
-    };
-
-    container.addEventListener("scroll", handleScroll);
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
 
   // 1. Fetch All Data
   const fetchData = async () => {
@@ -122,15 +108,27 @@ const Allocations = () => {
       const baseScrollSpeed = 10; // Base pixels to scroll per interval
       // Adjust scroll speed based on zoom level
       const scrollSpeed = baseScrollSpeed * (zoomLevel / 100);
-
       // Clear any existing interval
       if (scrollIntervalRef.current) {
         clearInterval(scrollIntervalRef.current);
         scrollIntervalRef.current = null;
       }
 
+      // Determine direction zones
+      const nearRight = mouseX > rect.width - threshold;
+      const nearLeft = mouseX < threshold + 180 && container.scrollLeft > 0;
+
+      // Update cursor to indicate horizontal scroll direction
+      if (nearRight) {
+        container.style.cursor = "e-resize";
+      } else if (nearLeft) {
+        container.style.cursor = "w-resize";
+      } else {
+        container.style.cursor = "";
+      }
+
       // Check if mouse is near right edge
-      if (mouseX > rect.width - threshold) {
+      if (nearRight) {
         scrollIntervalRef.current = setInterval(() => {
           if (container) {
             container.scrollLeft += scrollSpeed;
@@ -138,7 +136,7 @@ const Allocations = () => {
         }, 16); // ~60fps
       }
       // Check if mouse is near left edge (accounting for sticky column width)
-      else if (mouseX < threshold + 180 && container.scrollLeft > 0) {
+      else if (nearLeft) {
         scrollIntervalRef.current = setInterval(() => {
           if (container) {
             container.scrollLeft -= scrollSpeed;
@@ -152,6 +150,7 @@ const Allocations = () => {
         clearInterval(scrollIntervalRef.current);
         scrollIntervalRef.current = null;
       }
+      if (container) container.style.cursor = "";
     };
 
     container.addEventListener("mousemove", handleMouseMove);
@@ -161,12 +160,13 @@ const Allocations = () => {
       if (container) {
         container.removeEventListener("mousemove", handleMouseMove);
         container.removeEventListener("mouseleave", handleMouseLeave);
+        container.style.cursor = "";
       }
       if (scrollIntervalRef.current) {
         clearInterval(scrollIntervalRef.current);
       }
     };
-  }, [zoomLevel]); // Re-run when zoom level changes
+  }, [zoomLevel, loading]); // Re-run when zoom level or loading state changes
 
   // Helper: Get Teacher Stats for Heatmap
   const getTeacherStats = (teacherId) => {
@@ -470,10 +470,7 @@ const Allocations = () => {
       >
         <div
           style={{
-            transform: `scale(${zoomLevel / 100})`,
-            transformOrigin: "top left",
-            width: `${100 / (zoomLevel / 100)}%`,
-            height: `${100 / (zoomLevel / 100)}%`,
+            zoom: `${zoomLevel}%`,
           }}
         >
           <table className="min-w-full divide-y divide-gray-200">
@@ -483,7 +480,7 @@ const Allocations = () => {
                   className="px-3 py-3 text-left text-sm font-bold text-gray-900 uppercase tracking-wider bg-gray-100 min-w-[180px] border-r border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"
                   style={{
                     position: "sticky",
-                    left: `${scrollLeft / (zoomLevel / 100)}px`,
+                    left: 0,
                     zIndex: 30,
                   }}
                 >
@@ -515,7 +512,7 @@ const Allocations = () => {
                       className="px-3 py-3 bg-white border-r border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]"
                       style={{
                         position: "sticky",
-                        left: `${scrollLeft / (zoomLevel / 100)}px`,
+                        left: 0,
                         zIndex: 10,
                       }}
                     >

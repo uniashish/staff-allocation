@@ -14,9 +14,12 @@ import { db } from "../../firebase/firebaseUtils";
 import { Plus, Pencil, Trash2, Layers, Users } from "lucide-react";
 import ClassModal from "./ClassModal";
 import ClassDetailModal from "./ClassDetailModal";
+import { useAuth } from "../../hooks/useAuth";
 
 const Classes = () => {
   const { school } = useOutletContext();
+  const { userData } = useAuth();
+  const isSuperAdmin = userData?.role === "super_admin";
 
   // Data State
   const [grades, setGrades] = useState([]);
@@ -186,13 +189,15 @@ const Classes = () => {
             Manage grade levels and student counts.
           </p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm text-sm font-medium"
-        >
-          <Plus size={18} />
-          Add Class
-        </button>
+        {isSuperAdmin && (
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm text-sm font-medium"
+          >
+            <Plus size={18} />
+            Add Class
+          </button>
+        )}
       </div>
 
       {/* Grid Layout */}
@@ -233,27 +238,29 @@ const Classes = () => {
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openEditModal(grade);
-                    }}
-                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-white/50 rounded-md"
-                  >
-                    <Pencil size={16} />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(grade.id, grade.name);
-                    }}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-white/50 rounded-md"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
+                {/* Actions — Only visible to super_admin on hover */}
+                {isSuperAdmin && (
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditModal(grade);
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-white/50 rounded-md"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(grade.id, grade.name);
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-white/50 rounded-md"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}

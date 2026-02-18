@@ -23,9 +23,13 @@ import {
 } from "lucide-react";
 import SubjectModal from "./SubjectModal";
 import SubjectDetailModal from "./SubjectDetailModal";
+import { useAuth } from "../../hooks/useAuth";
 
 const Subjects = () => {
   const { school } = useOutletContext();
+  const { userData } = useAuth();
+  const isSuperAdmin = userData?.role === "super_admin";
+
   const [subjects, setSubjects] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [grades, setGrades] = useState([]);
@@ -176,12 +180,14 @@ const Subjects = () => {
             Manage subjects and monitor teacher allocations.
           </p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors shadow-sm text-sm font-medium"
-        >
-          <Plus size={18} /> Add Subject
-        </button>
+        {isSuperAdmin && (
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors shadow-sm text-sm font-medium"
+          >
+            <Plus size={18} /> Add Subject
+          </button>
+        )}
       </div>
 
       {/* Grid Layout */}
@@ -305,53 +311,49 @@ const Subjects = () => {
 
                 {/* Teachers Section (Push to bottom) */}
                 <div className="mt-auto pt-4 border-t border-gray-100/50 flex items-center justify-between">
-                  {/* Teacher Avatars */}
-                  <div className="flex -space-x-2">
+                  {/* Teachers: avatars + visible names */}
+                  <div className="text-sm text-gray-700 whitespace-normal">
                     {assignedTeachers.length > 0 ? (
-                      assignedTeachers.slice(0, 3).map((t) => (
-                        <div
-                          key={t.id}
-                          className="h-8 w-8 rounded-full ring-2 ring-white bg-green-100 flex items-center justify-center text-xs font-bold text-green-800"
-                          title={t.name}
-                        >
-                          {t.name.charAt(0)}
-                        </div>
-                      ))
+                      <>
+                        {assignedTeachers.map((t, i) => (
+                          <span key={t.id} className="inline">
+                            {t.name}
+                            {i < assignedTeachers.length - 1 && ", "}
+                          </span>
+                        ))}
+                      </>
                     ) : (
                       <span className="text-xs text-gray-400 italic">
                         No Teachers
                       </span>
                     )}
-                    {assignedTeachers.length > 3 && (
-                      <div className="h-8 w-8 rounded-full ring-2 ring-white bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500">
-                        +{assignedTeachers.length - 3}
-                      </div>
-                    )}
                   </div>
 
-                  {/* Actions (Hidden by default, show on hover) */}
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditModal(subject);
-                      }}
-                      className="p-1.5 bg-white text-gray-500 hover:text-green-600 rounded-md shadow-sm border border-gray-200"
-                      title="Edit"
-                    >
-                      <Pencil size={16} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(subject.id, subject.name);
-                      }}
-                      className="p-1.5 bg-white text-gray-500 hover:text-red-600 rounded-md shadow-sm border border-gray-200"
-                      title="Delete"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
+                  {/* Actions — Only visible to super_admin on hover */}
+                  {isSuperAdmin && (
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditModal(subject);
+                        }}
+                        className="p-1.5 bg-white text-gray-500 hover:text-green-600 rounded-md shadow-sm border border-gray-200"
+                        title="Edit"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(subject.id, subject.name);
+                        }}
+                        className="p-1.5 bg-white text-gray-500 hover:text-red-600 rounded-md shadow-sm border border-gray-200"
+                        title="Delete"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

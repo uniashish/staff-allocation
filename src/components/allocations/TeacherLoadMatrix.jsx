@@ -51,8 +51,15 @@ const TeacherLoadMatrix = ({
   }, [teacherRows]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50 backdrop-blur-sm">
-      <div className="bg-white w-[95vw] h-[90vh] rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div
+      className="fixed inset-0 z-50 bg-gray-900 bg-opacity-50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="fixed top-[80px] left-1/2 transform -translate-x-1/2 z-50 bg-white w-[95vw] max-w-6xl rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        style={{ height: "calc(100vh - 100px)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
           <div>

@@ -22,9 +22,12 @@ import {
 } from "lucide-react";
 import DepartmentModal from "./DepartmentModal";
 import DepartmentDetailModal from "./DepartmentDetailModal";
+import { useAuth } from "../../hooks/useAuth";
 
 const Departments = () => {
   const { school } = useOutletContext();
+  const { userData } = useAuth();
+  const isSuperAdmin = userData?.role === "super_admin";
 
   // Data State
   const [departments, setDepartments] = useState([]);
@@ -189,13 +192,15 @@ const Departments = () => {
             Manage academic departments and faculties.
           </p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm text-sm font-medium"
-        >
-          <Plus size={18} />
-          Add Department
-        </button>
+        {isSuperAdmin && (
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm text-sm font-medium"
+          >
+            <Plus size={18} />
+            Add Department
+          </button>
+        )}
       </div>
 
       {/* Grid Layout */}
@@ -248,27 +253,29 @@ const Departments = () => {
                           </span>
                         </div>
                       </div>
-                      {/* Action Buttons */}
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEditModal(dept);
-                          }}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-white/50 rounded-md"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(dept.id, dept.name);
-                          }}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-white/50 rounded-md"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                      {/* Action Buttons — Only visible to super_admin on hover */}
+                      {isSuperAdmin && (
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditModal(dept);
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-white/50 rounded-md"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(dept.id, dept.name);
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-white/50 rounded-md"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Periods Stats */}

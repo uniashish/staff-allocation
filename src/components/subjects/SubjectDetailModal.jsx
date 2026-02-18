@@ -58,8 +58,8 @@ const SubjectDetailModal = ({
   const totalUnallocated = totalRequired - totalAllocated;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm overflow-y-auto py-8">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col min-h-0 max-h-[calc(100vh-8rem)]">
         {/* Header */}
         <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-start bg-gray-50">
           <div>
@@ -114,7 +114,7 @@ const SubjectDetailModal = ({
         </div>
 
         {/* Main Table */}
-        <div className="flex-1 overflow-auto p-6 bg-gray-50/50">
+        <div className="flex-1 overflow-auto p-6 bg-gray-50/50 min-h-0">
           {classStats.length === 0 ? (
             <div className="text-center py-10 text-gray-400">
               No classes configured for this subject.
