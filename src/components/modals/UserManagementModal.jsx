@@ -11,7 +11,6 @@ import {
   X,
   Shield,
   User,
-  Clock,
   Loader2,
   CheckCircle2,
   Trash2,
@@ -153,7 +152,6 @@ const UserManagementModal = ({ isOpen, onClose }) => {
                 <tr>
                   <th className="px-6 py-4">User</th>
                   <th className="px-6 py-4">Role</th>
-                  <th className="px-6 py-4">Last Login</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -223,40 +221,10 @@ const UserManagementModal = ({ isOpen, onClose }) => {
                             <option value="viewer">Viewer</option>
                             <option value="super_admin">Super Admin</option>
                           </select>
-                          {/* Custom Dropdown Arrow */}
-                          <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                            <svg
-                              width="10"
-                              height="6"
-                              viewBox="0 0 10 6"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M1 1L5 5L9 1"
-                                stroke="currentColor"
-                                strokeWidth="1.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          </div>
+                          {/* decorative arrow removed */}
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                          <Clock size={14} className="text-gray-400" />
-                          {user.lastLogin ? (
-                            new Date(
-                              user.lastLogin.seconds * 1000,
-                            ).toLocaleDateString()
-                          ) : (
-                            <span className="text-gray-400 italic text-xs">
-                              Never
-                            </span>
-                          )}
-                        </div>
-                      </td>
+
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           {updatingId === user.id ? (
