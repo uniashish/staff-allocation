@@ -45,6 +45,9 @@ const Subjects = () => {
   // Detail Modal State
   const [viewingSubject, setViewingSubject] = useState(null);
 
+  // Search State
+  const [searchQuery, setSearchQuery] = useState("");
+
   // --- HELPER: Safely get periods (Handles inconsistencies in field names) ---
   const getPeriods = (allocation) => {
     return parseInt(allocation.periods || allocation.periodsPerWeek || 0);
@@ -168,6 +171,23 @@ const Subjects = () => {
       <div className="p-8 text-center text-gray-500">Loading subjects...</div>
     );
 
+  // Filter subjects based on search query
+  const filteredSubjects = subjects.filter((subject) => {
+    const searchLower = searchQuery.toLowerCase();
+    const nameMatch = subject.name.toLowerCase().includes(searchLower);
+    const departmentMatch =
+      subject.departmentName &&
+      subject.departmentName.toLowerCase().includes(searchLower);
+    const teacherMatch = allocations.some((a) => {
+      if (a.subjectId === subject.id) {
+        const teacher = teachers.find((t) => t.id === a.teacherId);
+        return teacher && teacher.name.toLowerCase().includes(searchLower);
+      }
+      return false;
+    });
+    return nameMatch || departmentMatch || teacherMatch;
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -180,19 +200,29 @@ const Subjects = () => {
             Manage subjects and monitor teacher allocations.
           </p>
         </div>
-        {isSuperAdmin && (
-          <button
-            onClick={openAddModal}
-            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors shadow-sm text-sm font-medium"
-          >
-            <Plus size={18} /> Add Subject
-          </button>
-        )}
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          {/* Search Bar */}
+          <input
+            type="text"
+            placeholder="Search by name, dept, or teacher..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent flex-1 sm:flex-none"
+          />
+          {isSuperAdmin && (
+            <button
+              onClick={openAddModal}
+              className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors shadow-sm text-sm font-medium"
+            >
+              <Plus size={18} /> Add Subject
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Grid Layout */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {subjects.map((subject) => {
+        {filteredSubjects.map((subject) => {
           // --- CALCULATIONS ---
           // 1. Total Required Periods
           const totalRequired = (subject.gradeDetails || []).reduce(
@@ -362,12 +392,16 @@ const Subjects = () => {
       </div>
 
       {/* Empty State */}
-      {subjects.length === 0 && (
+      {filteredSubjects.length === 0 && (
         <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
           <BookOpen className="text-gray-300 mx-auto mb-3" size={48} />
-          <h3 className="text-lg font-medium text-gray-900">No subjects yet</h3>
+          <h3 className="text-lg font-medium text-gray-900">
+            {searchQuery ? "No matching subjects found" : "No subjects yet"}
+          </h3>
           <p className="text-gray-500 text-sm">
-            Add a subject to start assigning teachers.
+            {searchQuery
+              ? "Try adjusting your search criteria."
+              : "Add a subject to start assigning teachers."}
           </p>
         </div>
       )}

@@ -44,9 +44,7 @@ const TeacherDetailModal = ({ isOpen, onClose, teacher, allocations = [] }) => {
               <h2 className="text-xl font-bold text-gray-900">
                 {teacher.name}
               </h2>
-              <p className="text-sm text-gray-500">
-                Workload & Schedule Profile
-              </p>
+              <p className="text-sm text-gray-500">Workload & Schedule</p>
             </div>
           </div>
           <button
@@ -104,7 +102,7 @@ const TeacherDetailModal = ({ isOpen, onClose, teacher, allocations = [] }) => {
             <div className="flex items-center gap-2 mb-4">
               <Calendar className="text-gray-400" size={18} />
               <h3 className="font-semibold text-gray-900">
-                Active Teaching Assignments
+                Current Teaching Assignments
               </h3>
             </div>
 

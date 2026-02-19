@@ -43,6 +43,9 @@ const Teachers = () => {
   // Detail Modal State
   const [viewingTeacher, setViewingTeacher] = useState(null);
 
+  // Search State
+  const [searchQuery, setSearchQuery] = useState("");
+
   const canEdit = currentUser?.role === "super_admin";
 
   // 1. Fetch All Data
@@ -186,6 +189,24 @@ const Teachers = () => {
       <div className="p-8 text-center text-gray-500">Loading teachers...</div>
     );
 
+  // Filter teachers based on search query
+  const filteredTeachers = teachers.filter((teacher) => {
+    const searchLower = searchQuery.toLowerCase();
+    const nameMatch = teacher.name.toLowerCase().includes(searchLower);
+    const subjectMatch =
+      teacher.subjectNames &&
+      teacher.subjectNames.some((subject) =>
+        subject.toLowerCase().includes(searchLower),
+      );
+    const departmentMatch =
+      teacher.departmentIds &&
+      teacher.departmentIds.some((deptId) => {
+        const dept = departments.find((d) => d.id === deptId);
+        return dept && dept.name.toLowerCase().includes(searchLower);
+      });
+    return nameMatch || subjectMatch || departmentMatch;
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -194,33 +215,45 @@ const Teachers = () => {
           <h2 className="text-xl font-bold text-gray-900">Teachers</h2>
           <p className="text-sm text-gray-500">Manage faculty and workload.</p>
         </div>
-        {canEdit && (
-          <button
-            onClick={openAddModal}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm text-sm font-medium"
-          >
-            <Plus size={18} />
-            Add Teacher
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {/* Search Bar */}
+          <input
+            type="text"
+            placeholder="Search by name or subject..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          {canEdit && (
+            <button
+              onClick={openAddModal}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm text-sm font-medium"
+            >
+              <Plus size={18} />
+              Add Teacher
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Grid Layout */}
-      {teachers.length === 0 ? (
+      {filteredTeachers.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
           <div className="bg-blue-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
             <GraduationCap className="text-blue-500" size={24} />
           </div>
           <h3 className="text-lg font-medium text-gray-900">
-            No teachers found
+            {searchQuery ? "No matching teachers found" : "No teachers found"}
           </h3>
           <p className="text-gray-500 text-sm mt-1">
-            Add your first teacher to get started.
+            {searchQuery
+              ? "Try adjusting your search criteria."
+              : "Add your first teacher to get started."}
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {teachers.map((teacher) => {
+          {filteredTeachers.map((teacher) => {
             // Get Departments
             const teacherDepts =
               teacher.departmentIds && teacher.departmentIds.length > 0
