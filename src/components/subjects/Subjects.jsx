@@ -258,6 +258,7 @@ const Subjects = () => {
           let progressBg = "bg-green-50"; // Default Fill Color (Light)
           let textColor = "text-green-700"; // Default Text Color
           let iconColor = "text-green-500"; // Default Icon Color
+          let cardBg = "bg-red-50"; // Card background (red for unallocated)
 
           if (totalRequired === 0) {
             // Not Configured -> Gray
@@ -265,25 +266,28 @@ const Subjects = () => {
             progressBg = "bg-gray-100";
             textColor = "text-gray-500";
             iconColor = "text-gray-400";
+            cardBg = "bg-white"; // White for not configured
           } else if (totalAllocated > totalRequired) {
             // Over Allocated -> Red
             statusColor = "bg-red-500";
             progressBg = "bg-red-50";
             textColor = "text-red-700";
             iconColor = "text-red-500";
+            cardBg = "bg-red-50"; // Red background for over-allocated
           } else {
             // Normal Progress or Complete -> Green
             statusColor = "bg-green-600";
             progressBg = "bg-green-100";
             textColor = "text-green-800";
             iconColor = "text-green-600";
+            cardBg = "bg-red-50"; // Red background for unallocated
           }
 
           return (
             <div
               key={subject.id}
               onClick={() => setViewingSubject(subject)}
-              className="group relative bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-all cursor-pointer flex flex-col h-full"
+              className={`group relative ${cardBg} rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-all cursor-pointer flex flex-col h-full`}
             >
               {/* --- PROGRESS BACKGROUND FILL --- */}
               <div

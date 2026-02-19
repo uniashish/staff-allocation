@@ -20,6 +20,8 @@ import {
   Building2,
   BookOpen,
   Clock,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import TeacherModal from "./TeacherModal";
 import TeacherDetailModal from "./TeacherDetailModal";
@@ -45,6 +47,9 @@ const Teachers = () => {
 
   // Search State
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Sort State
+  const [sortOrder, setSortOrder] = useState("desc"); // 'asc' or 'desc'
 
   const canEdit = currentUser?.role === "super_admin";
 
@@ -190,7 +195,7 @@ const Teachers = () => {
     );
 
   // Filter teachers based on search query
-  const filteredTeachers = teachers.filter((teacher) => {
+  let filteredTeachers = teachers.filter((teacher) => {
     const searchLower = searchQuery.toLowerCase();
     const nameMatch = teacher.name.toLowerCase().includes(searchLower);
     const subjectMatch =
@@ -207,6 +212,18 @@ const Teachers = () => {
     return nameMatch || subjectMatch || departmentMatch;
   });
 
+  // Sort teachers based on allocation percentage
+  filteredTeachers = filteredTeachers
+    .map((teacher) => {
+      const stats = getTeacherStats(teacher.id, teacher.maxLoad);
+      return { ...teacher, percentage: stats.percentage };
+    })
+    .sort((a, b) => {
+      return sortOrder === "asc"
+        ? a.percentage - b.percentage
+        : b.percentage - a.percentage;
+    });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -215,7 +232,7 @@ const Teachers = () => {
           <h2 className="text-xl font-bold text-gray-900">Teachers</h2>
           <p className="text-sm text-gray-500">Manage faculty and workload.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {/* Search Bar */}
           <input
             type="text"
@@ -224,6 +241,32 @@ const Teachers = () => {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
+          {/* Sort Buttons */}
+          <div className="flex gap-1 border border-gray-300 rounded-lg">
+            <button
+              onClick={() => setSortOrder("asc")}
+              className={`p-2 transition-colors ${
+                sortOrder === "asc"
+                  ? "bg-blue-100 text-blue-600"
+                  : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              }`}
+              title="Sort ascending by allocation %"
+            >
+              <ArrowUp size={16} />
+            </button>
+            <div className="border-r border-gray-300"></div>
+            <button
+              onClick={() => setSortOrder("desc")}
+              className={`p-2 transition-colors ${
+                sortOrder === "desc"
+                  ? "bg-blue-100 text-blue-600"
+                  : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              }`}
+              title="Sort descending by allocation %"
+            >
+              <ArrowDown size={16} />
+            </button>
+          </div>
           {canEdit && (
             <button
               onClick={openAddModal}

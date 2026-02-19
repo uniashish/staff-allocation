@@ -46,6 +46,7 @@ const Allocations = () => {
   const [isMatrixOpen, setIsMatrixOpen] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
+  const [filterQuery, setFilterQuery] = useState("");
 
   // Refs for auto-scroll
   const scrollContainerRef = useRef(null);
@@ -383,6 +384,46 @@ const Allocations = () => {
     setAssignPeriods(remaining);
   };
 
+  // Filter grades based on filter query
+  const filteredGrades = useMemo(() => {
+    if (!filterQuery.trim()) return grades;
+
+    const query = filterQuery.toLowerCase();
+    return grades.filter((grade) => {
+      // Match grade name
+      if (grade.name.toLowerCase().includes(query)) return true;
+
+      // Match any subject, teacher, or department for this grade
+      for (const subject of subjects) {
+        const isGradeTaught =
+          subject.gradeIds && subject.gradeIds.includes(grade.id);
+        if (!isGradeTaught) continue;
+
+        // Match subject name
+        if (subject.name.toLowerCase().includes(query)) return true;
+
+        // Match department name
+        if (
+          subject.departmentName &&
+          subject.departmentName.toLowerCase().includes(query)
+        )
+          return true;
+
+        // Match teacher name in allocations for this grade/subject
+        const cellAllocs = allocations.filter(
+          (a) => a.gradeId === grade.id && a.subjectId === subject.id,
+        );
+        if (
+          cellAllocs.some((a) => a.teacherName.toLowerCase().includes(query))
+        ) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+  }, [filterQuery, grades, subjects, allocations]);
+
   if (loading)
     return (
       <div className="p-8 text-center text-gray-500">Loading matrix...</div>
@@ -411,6 +452,14 @@ const Allocations = () => {
             <Layers size={18} />
             {showHeatmap ? "Heatmap On" : "Heatmap Off"}
           </button>
+
+          <input
+            type="text"
+            placeholder="Filter by teacher, subject, dept, or class..."
+            value={filterQuery}
+            onChange={(e) => setFilterQuery(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          />
 
           <button
             onClick={() => setIsMatrixOpen(true)}
@@ -466,7 +515,7 @@ const Allocations = () => {
       {/* MATRIX TABLE WITH AUTO-SCROLL AND FIXED ZOOM */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 bg-white border border-gray-200 rounded-xl overflow-auto shadow-sm relative w-full h-[70vh] min-h-[70vh]"
+        className="flex-1 bg-white border border-gray-200 rounded-xl overflow-y-scroll overflow-x-auto shadow-sm relative w-full h-[70vh] min-h-[70vh]"
       >
         <div
           style={{
@@ -501,7 +550,7 @@ const Allocations = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {grades.map((grade) => {
+              {filteredGrades.map((grade) => {
                 const stats = getGradeStats(grade.id);
                 return (
                   <tr

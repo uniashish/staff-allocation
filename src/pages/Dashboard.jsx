@@ -119,7 +119,7 @@ const Dashboard = () => {
     currentUser?.role === "super_admin" || userRole === "super_admin";
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-24">
       {/* Welcome Banner */}
       <div className="bg-gradient-to-r from-brand-teal to-teal-600 rounded-2xl p-8 text-white shadow-xl relative overflow-hidden">
         <div className="relative z-10">
@@ -224,6 +224,14 @@ const Dashboard = () => {
         isOpen={isUserModalOpen}
         onClose={() => setIsUserModalOpen(false)}
       />
+
+      {/* Footer */}
+      <footer className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 text-center text-gray-600 py-4 shadow-lg">
+        <p className="text-sm">
+          Developed and Maintained by{" "}
+          <span className="font-semibold">Ashish Bhatnagar</span> SIS KGNEJ
+        </p>
+      </footer>
     </div>
   );
 };
